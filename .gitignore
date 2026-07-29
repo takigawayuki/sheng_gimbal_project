@@ -1,0 +1,65 @@
+# ============== OS Generated Files ==============
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100.Trashes
+
+# ============== Editor/IDE ==============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.projects
+.cproject
+.settings/
+*.launch
+
+# ============== Keil MDK-ARM ==============
+# Object and intermediate files
+*.o
+*.d
+*.crf
+*.axf
+*.map
+*.htm
+*.lnp
+*.sct
+*.dep
+
+# Output files
+*.hex
+*.bin
+
+# Keil project files (generated/user-specific)
+*.uvguix.*
+*.bak
+*.dbgconf
+*.scvd
+*.uvguix.*.bak
+
+# Keil logs
+*.log
+*.log.lock
+
+# ============== STM32CubeMX ==============
+*.ioc.backup
+*.ioc.$REV
+
+# ============== Build Directories ==============
+Debug/
+Release/
+build/
+dist/
+obj/
+bin/
+
+# ============== User Specific ==============
+*.user
+*.user.*
