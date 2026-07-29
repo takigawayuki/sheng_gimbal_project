@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #define ANGLE_TO_RAD  M_PI / 180.0f  // 角度转rad
-#define RAD_TO_ANGLE   180.0f / M_PI   
+#define RAD_TO_ANGLE   180.0f / M_PI
 
 /* ========== 数学运算宏 ========== */
 #define SIGN(x) (((x) < 0.0f) ? -1.0f : 1.0f) // 返回符号（-1 或 1）
@@ -143,6 +143,14 @@ typedef struct
   float gimbal_pitch;
   float gimbal_yaw;
 
+  /* H题：视觉给出的钢球相对 O 点位置，单位 cm */
+  float ball_pos_cm;       // 钢球当前位置，单位 cm，经过滤波后的视觉位置
+  float ball_vel_cm_s;    // 钢球速度估计，单位 cm/s，由相邻两次位置差分得到
+  float ball_pos_raw_cm;   // 钢球原始位置，单位 cm，视觉数据换算后未滤波的值
+  float rod_angle_deg;    // 摆杆当前实际角度，单位 deg，对应摆杆电机当前位置
+  uint32_t car_run_time_ms;  // 小车运行同步计时，单位 ms，用于题4/5/6时间显示或判定
+  uint32_t task_run_time_ms; // 当前题目任务运行计时，单位 ms，用于状态机超时和显示
+
 } gimbal_value_t;
 
 typedef struct
@@ -151,6 +159,12 @@ typedef struct
   float yaw_set;
   float camera_x_set;
   float camera_y_set;
+
+  /* H题：钢球目标位置和摆杆目标角度 */
+  float ball_target_cm;       // 钢球当前控制目标位置，单位 cm，比如 0cm、+5cm、-5cm
+  float ball_task6_target_cm; // 题6指定的钢球目标位置，单位 cm，启动题6前填入
+  float rod_angle_cmd_deg;  // 摆杆目标角度命令，单位 deg，由钢球位置 PID 输出并限幅得到
+  float rod_chassis_ff_deg; // 小车运动时的底盘前馈补偿角度，单位 deg，先占位，默认填 0
 } gimbal_ctrl_t;
 
 
@@ -182,10 +196,10 @@ typedef struct
   gimbal_ctrl_t ctrl;
   pid_para_t camera_y_pid;
   pid_para_t camera_x_pid;
-	
+
 	pid_para_t camera_y_pid_run;
 	pid_para_t camera_x_pid_run;
-	
+
 } sys_t;
 
 extern sys_t sys;
@@ -201,12 +215,18 @@ extern sys_t sys;
 typedef enum
 {
   GIMBAL_IDLE = 0, // 待机，等待按键启动，电机停，激光关  基础1
-  // GIMBAL_SEARCH,   
+  // GIMBAL_SEARCH,
   GIMBAL_SEARCH_LEFT,   // 基础2
   GIMBAL_SEARCH_RIGHT,  // 基础2
-  GIMBAL_STATIC_TRACK,  // 基础2  
+  GIMBAL_STATIC_TRACK,  // 基础2
   GIMBAL_DYNAMIC_TRACK,   // 基础3
   GIMBAL_DYNAMIC_RUNNING,   // 发挥
+
+  /* H题_车载平衡滚球运动控制系统：本摆杆工程只负责题3到题6 */
+  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// 题3：静止时 +5cm 后折返到 -5cm
+  BALANCE_TASK4_CAR_TO_B_CENTER,    // 题4：到 B 点，钢球稳在 O 点
+  BALANCE_TASK5_CAR_LAP_CENTER,     // 题5：一圈，钢球稳在 O 点
+  BALANCE_TASK6_CAR_LAP_SETPOINT,   // 题6：一圈，钢球稳在任意指定位置
 } gimbal_state;
 
 // 云台状态机变量
@@ -216,6 +236,12 @@ typedef struct
   uint32_t search_timeout_cnt; // 找靶超时计数器
   uint32_t aim_stable_cnt;     // 对准稳定计数器
   // int8_t scan_dir;             // 扫描方向，1和-1
+
+  /* H题任务运行参数 */
+  uint32_t elapsed_ms; // 当前状态已运行时间，单位 ms，每次启动任务时清零
+  uint32_t stable_ms;  // 钢球进入允许误差范围后的稳定计时，单位 ms
+  uint8_t task3_phase; // 题3阶段标志，0 表示先去 +5cm，1 表示折返回 -5cm
+  uint8_t finished;     // 当前题目是否完成，1 表示状态机已达到结束条件
 } gimbal_sm_t;
 
 extern gimbal_sm_t gimbal_sm_obj;
@@ -265,6 +291,12 @@ typedef enum
   MENU_ITEM_TRACK_STATIC_RIGHT,   // ← 新加
   MENU_ITEM_TRACK_DYNAMIC, // 动态跟随（对应基础3）
   MENU_ITEM_RUNNING_DYNAMIC,  // 发挥
+
+  MENU_ITEM_TASK3_STATIC_PM5,  // 题3
+  MENU_ITEM_TASK4_AB_CENTER,   // 题4
+  MENU_ITEM_TASK5_LAP_CENTER,  // 题5
+  MENU_ITEM_TASK6_LAP_SETPOINT,// 题6
+
   MENU_ITEM_COUNT          // 循环菜单状态
 } menu_item_t;
 
@@ -286,6 +318,7 @@ extern car_speak_rx_t car_speak_rx;
 uint8_t target_stable(void);
 // void gimbal_sm(void);
 void gimbal_task_state(void);
+void balance_task_start(gimbal_state state);
 
 /*** key.c ***/
 void key_init(void);
@@ -297,9 +330,11 @@ void menu_update(key_event_t ev_menu, key_event_t ev_enter);
 
 /*** gimbal_calc.c ***/
 void camera_data_update(float dx, float dy);
+void ball_data_update(float ball_pos_cm);
 
 /*** gimbal_drv.c ***/
 void gimbal_init(void);
+void balance_init(void);
 
 void gimbal_pid_base_update_now(void);
 
@@ -308,6 +343,12 @@ void camera_x_pid_ctrl(sys_t *sys, float ref_value);
 
 void camera_y_pid_run_ctrl(sys_t *sys, float ref_value);
 void camera_x_pid_run_ctrl(sys_t *sys, float ref_value);
+void ball_balance_static_ctrl(sys_t *sys, float target_cm);
+void ball_balance_running_ctrl(sys_t *sys, float target_cm);
+void ball_balance_set_chassis_ff(float ff_deg);
+uint8_t balance_rod_limit_test_enabled(void);
+void balance_rod_limit_test_update(void);
+void ball_balance_stop(void);
 
 /*** car_speak.c ***/
 void CarSpeak_UART_RxStart(void);

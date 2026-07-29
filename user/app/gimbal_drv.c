@@ -34,6 +34,7 @@ void gimbal_init(void)
 {
     period_init();
     pid_init();
+    balance_init();
 }
 
 void period_init(void)
@@ -327,10 +328,167 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
     ZhangDaTou_Control(&yawmotor);
 }
 
-// void pid()
-// {
-//     error = sys->value.camera_x - test_x;
+/* ================= H题：摆杆滚球控制 =================
+ * pitchmotor 复用为摆杆电机。
+ * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG 必须实测后填写。
+ * 题3使用静态 PID；题4/5/6使用运动 PID，并预留底盘前馈补偿量。
+ * 测摆杆机械限幅时，把 ROD_LIMIT_TEST_ENABLE 改成 1U。
+ */
+#define ROD_CENTER_DEG          0.0f
+#define ROD_MIN_DEG            -8.0f
+#define ROD_MAX_DEG             8.0f
+#define ROD_DEFAULT_SPEED_DPS  80.0f
+#define ROD_DEFAULT_ACC      1000U
 
-// 	p_term = kp * error;
+/* 摆杆限幅测试开关。
+ * 0U：正常运行题3/4/5/6状态机和 PID。
+ * 1U：只读取 pitchmotor 反馈角度，不执行状态机 PID，不给摆杆下发位置命令。
+ * 测试方法：打开后烧录，手动转摆杆到机械最低/最高安全位置，记录 pitch_pos 或 sys.value.rod_angle_deg。
+ * 记录值分别填入 ROD_MIN_DEG / ROD_MAX_DEG，水平位置填入 ROD_CENTER_DEG。
+ */
+#define ROD_LIMIT_TEST_ENABLE   0U
 
-// }
+/* 运动题前馈补偿角度的安全限幅。
+ * 先占位用，默认前馈为 0deg；后面底盘给出加速度/速度补偿后，再把值写入 sys.ctrl.rod_chassis_ff_deg。
+ */
+#define ROD_CHASSIS_FF_MIN_DEG -5.0f
+#define ROD_CHASSIS_FF_MAX_DEG  5.0f
+
+static void ball_balance_apply_cmd(sys_t *sys_obj, float rod_cmd);
+
+static float balance_clampf(float value, float low, float high)
+{
+    if (value < low) return low;
+    if (value > high) return high;
+    return value;
+}
+
+static void ball_pid_reset(pid_para_t *pid)
+{
+    pid->i_term = 0.0f;
+    pid->pre_err = 0.0f;
+    pid->out_value = 0.0f;
+}
+
+uint8_t balance_rod_limit_test_enabled(void)
+{
+#if ROD_LIMIT_TEST_ENABLE
+    return 1U;
+#else
+    return 0U;
+#endif
+}
+
+void balance_rod_limit_test_update(void)
+{
+#if ROD_LIMIT_TEST_ENABLE
+    /* 限幅测试模式只读电机反馈，不下发任何摆杆控制命令。
+     * 此时可以手动转动摆杆，观察 pitch_pos 或 sys.value.rod_angle_deg。
+     */
+    yaw_pos = ZhangDaTou_getPositionDate(&yawmotor);
+    pitch_pos = ZhangDaTou_getPositionDate(&pitchmotor);
+
+    sys.value.rod_angle_deg = pitch_pos;
+    sys.ctrl.rod_angle_cmd_deg = pitch_pos;
+
+    ball_pid_reset(&sys.camera_x_pid);
+    ball_pid_reset(&sys.camera_x_pid_run);
+#endif
+}
+
+void balance_init(void)
+{
+    sys.ctrl.ball_target_cm = 0.0f;
+    sys.ctrl.ball_task6_target_cm = 0.0f;
+    sys.ctrl.rod_angle_cmd_deg = ROD_CENTER_DEG;
+    sys.ctrl.rod_chassis_ff_deg = 0.0f;
+
+    /* 题3静止滚球 PID：钢球位置 cm -> 摆杆角度 deg。
+     * 静止时没有底盘加减速扰动，先只靠位置闭环。
+     * 方向不对就反转 kp/ki/kd 符号。
+     */
+    sys.camera_x_pid.kp = 0.0f;
+    sys.camera_x_pid.ki = 0.0f;
+    sys.camera_x_pid.kd = 0.0f;
+    sys.camera_x_pid.out_max = 2000.0f;
+    sys.camera_x_pid.out_min = -2000.0f;
+    sys.camera_x_pid.i_term_max = 1500.0f;
+    sys.camera_x_pid.i_term_min = -1500.0f;
+
+    /* 题4/5/6运动滚球 PID：钢球位置 cm -> 摆杆角度 deg。
+     * 小车运动时会叠加底盘前馈 sys.ctrl.rod_chassis_ff_deg。
+     * 这套参数和题3分开调，避免静止题和运动题互相影响。
+     */
+    sys.camera_x_pid_run.kp = 0.0f;
+    sys.camera_x_pid_run.ki = 0.0f;
+    sys.camera_x_pid_run.kd = 0.0f;
+    sys.camera_x_pid_run.out_max = 2000.0f;
+    sys.camera_x_pid_run.out_min = -2000.0f;
+    sys.camera_x_pid_run.i_term_max = 1500.0f;
+    sys.camera_x_pid_run.i_term_min = -1500.0f;
+
+    pitchmotor.setSpeed = ROD_DEFAULT_SPEED_DPS;
+    pitchmotor.setAcc = ROD_DEFAULT_ACC;
+    pitchmotor.mod = 1;
+}
+
+void ball_balance_stop(void)
+{
+    ball_pid_reset(&sys.camera_x_pid);
+    ball_pid_reset(&sys.camera_x_pid_run);
+    sys.ctrl.rod_angle_cmd_deg = ROD_CENTER_DEG;
+    sys.ctrl.rod_chassis_ff_deg = 0.0f;
+
+    ZhangDaTou_PositionSpeedctr(&pitchmotor, ROD_DEFAULT_SPEED_DPS, ROD_CENTER_DEG, ROD_DEFAULT_ACC);   // 位置模式摆杆回中
+    ZhangDaTou_Control(&pitchmotor);
+}
+
+// 静止时的一套
+void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
+{
+    float rod_cmd;
+
+    sys_obj->ctrl.ball_target_cm = target_cm;
+    parallel_pid_ctrl(&sys_obj->camera_x_pid, target_cm, sys_obj->value.ball_pos_cm);
+
+    rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid.out_value;
+    ball_balance_apply_cmd(sys_obj, rod_cmd);
+}
+
+// 运动时的一套
+void ball_balance_set_chassis_ff(float ff_deg)
+{
+    /* 底盘前馈补偿角度占位接口。
+     * 现在可以一直传 0；后面底盘给出加速度/速度补偿量时，在这里写入即可。
+     */
+    sys.ctrl.rod_chassis_ff_deg = balance_clampf(ff_deg, ROD_CHASSIS_FF_MIN_DEG, ROD_CHASSIS_FF_MAX_DEG);
+}
+
+// 运动时的一套
+void ball_balance_running_ctrl(sys_t *sys_obj, float target_cm)
+{
+    float rod_cmd;
+    float chassis_ff_deg;
+
+    sys_obj->ctrl.ball_target_cm = target_cm;
+    parallel_pid_ctrl(&sys_obj->camera_x_pid_run, target_cm, sys_obj->value.ball_pos_cm);
+
+    /* 运动题前馈占位量。
+     * 当前默认是 0deg，不影响闭环；后续底盘补偿只需要改 sys.ctrl.rod_chassis_ff_deg。
+     */
+    chassis_ff_deg = balance_clampf(sys_obj->ctrl.rod_chassis_ff_deg, ROD_CHASSIS_FF_MIN_DEG, ROD_CHASSIS_FF_MAX_DEG);
+
+    rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid_run.out_value + chassis_ff_deg;
+    ball_balance_apply_cmd(sys_obj, rod_cmd);
+}
+
+static void ball_balance_apply_cmd(sys_t *sys_obj, float rod_cmd)
+{
+    rod_cmd = balance_clampf(rod_cmd, ROD_MIN_DEG, ROD_MAX_DEG);
+
+    sys_obj->ctrl.rod_angle_cmd_deg = rod_cmd;         // 记录最终发给摆杆电机的目标角度，单位 deg
+    sys_obj->value.rod_angle_deg = pitchmotor.Position; // 记录摆杆当前实际角度，这里 pitchmotor 就是摆杆电机
+
+    ZhangDaTou_PositionSpeedctr(&pitchmotor, ROD_DEFAULT_SPEED_DPS, rod_cmd, ROD_DEFAULT_ACC);
+    ZhangDaTou_Control(&pitchmotor);
+}
