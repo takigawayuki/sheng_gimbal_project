@@ -19,16 +19,17 @@
 #define BALL_VISION_SCALE_CM_PER_UNIT  1.0f
 
 /* 钢球位置一阶低通滤波系数。
- * 数值越大，跟随视觉越快，但抖动也更明显。
- * 数值越小，位置更平滑，但控制会更滞后。
+ * 视觉端已经做 alpha-beta 跟踪和前视预测，串口 position_cm 已经是控制用位置。
+ * 这里保持 1.0f，避免下位机再次滤波导致响应慢半拍。
+ * 如果后续关闭视觉端滤波/预测，再根据噪声情况改回 0.3f~0.6f。
  */
-#define BALL_POS_FILTER_ALPHA          0.35f
+#define BALL_POS_FILTER_ALPHA          1.0f
 
 /* 更新钢球位置数据。
  * ball_pos_cm 是视觉给出的钢球位置偏差，正负方向需要和摆杆控制方向配合实测确认。
  * 输出结果会写入：
  * sys.value.ball_pos_raw_cm：未滤波原始位置，方便观察视觉噪声。
- * sys.value.ball_pos_cm：滤波后的当前位置，PID 主要使用这个值。
+ * sys.value.ball_pos_cm：控制用位置；当前直接采用视觉端预测后的 position_cm。
  * sys.value.ball_vel_cm_s：由位置差分得到的速度估计，后面需要速度反馈时可以用。
  */
 void ball_data_update(float ball_pos_cm)
@@ -49,7 +50,7 @@ void ball_data_update(float ball_pos_cm)
     }
     else
     {
-        /* 一阶低通滤波：新位置 = 新视觉值 * alpha + 旧位置 * (1 - alpha)。 */
+        /* 当前 alpha=1.0f：直接使用视觉端预测位置；保留公式方便后续需要时重新启用低通。 */
         sys.value.ball_pos_cm = scaled_pos * BALL_POS_FILTER_ALPHA + sys.value.ball_pos_cm * (1.0f - BALL_POS_FILTER_ALPHA);
     }
 

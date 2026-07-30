@@ -340,6 +340,7 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
 #define ROD_MAX_DEG             8.0f
 #define ROD_DEFAULT_SPEED_DPS  80.0f
 #define ROD_DEFAULT_ACC      1000U
+#define BALL_I_TERM_LIMIT_DEG 1.0f       // H题积分项默认限幅，单位 deg；先小一点，防止积分把球越推越远
 
 /* 摆杆限幅测试开关。
  * 0U：正常运行题3/4/5/6状态机和 PID。
@@ -354,7 +355,7 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  * rod_cmd_limit_test_enable = 1：进入状态反馈限幅测试模式，状态机不跑题3/4/5/6。
  * sys.ctrl.ball_target_cm：手动给 PID 目标位置，单位 cm。
  * sys.value.ball_pos_cm：视觉更新的钢球位置反馈，单位 cm。
- * sys.camera_x_pid.kp/kd 在 Keil 里直接改：kp 是位置增益，kd 是速度阻尼增益，ki 暂时不用。
+ * sys.camera_x_pid.kp/ki/kd 在 Keil 里直接改：kp 是位置增益，ki 是小量积分补偿，kd 是速度阻尼增益。
  * 最终命令 = ROD_CENTER_DEG + 状态反馈输出，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
  */
 volatile uint8_t rod_cmd_limit_test_enable = 1U;
@@ -388,8 +389,9 @@ static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float po
 
     /* 状态反馈外环：位置误差 + 速度阻尼。
      * kp：位置增益，把钢球拉向目标位置。
+     * ki：小量积分，用来补偿摆杆零点误差或固定斜坡偏置。
      * kd：速度阻尼，钢球速度越大，越提前反向刹车。
-     * ki 暂时不用，滚球系统先不要加积分，避免越积越晃。
+     * 积分必须限幅，滚球系统不能让积分无限累加。
      */
     pid->ref_value = target_cm;
     pid->fback_value = pos_cm;
@@ -398,11 +400,12 @@ static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float po
     vel_error_cm_s = 0.0f - vel_cm_s;
 
     pid->p_term = pid->kp * pid->error;
-    pid->i_term = 0.0f;
+    pid->i_term += pid->ki * pid->error * pid->ts;
+    pid->i_term = balance_clampf(pid->i_term, pid->i_term_min, pid->i_term_max);
     pid->d_term = pid->kd * vel_error_cm_s;
     pid->pre_err = pid->error;
 
-    pid->out_value = pid->p_term + pid->d_term;
+    pid->out_value = pid->p_term + pid->i_term + pid->d_term;
 
     if (pid->out_value > pid->out_max)
         pid->out_value = pid->out_max;
@@ -496,13 +499,14 @@ void balance_init(void)
      * 静止时没有底盘加减速扰动，先只靠位置闭环。
      * 方向不对就反转 kp/ki/kd 符号。
      */
-    sys.camera_x_pid.kp = 0.0f;
+    sys.camera_x_pid.kp = -0.80f;
     sys.camera_x_pid.ki = 0.0f;
-    sys.camera_x_pid.kd = 0.0f;
+    sys.camera_x_pid.kd = -0.001f;
+    sys.camera_x_pid.ts = 0.001f;
     sys.camera_x_pid.out_max = 20000.0f;
     sys.camera_x_pid.out_min = -20000.0f;
-    sys.camera_x_pid.i_term_max = 20000.0f;
-    sys.camera_x_pid.i_term_min = -20000.0f;
+    sys.camera_x_pid.i_term_max = BALL_I_TERM_LIMIT_DEG;
+    sys.camera_x_pid.i_term_min = -BALL_I_TERM_LIMIT_DEG;
 
     /* 题4/5/6运动滚球 PID：钢球位置 cm -> 摆杆角度 deg。
      * 小车运动时会叠加底盘前馈 sys.ctrl.rod_chassis_ff_deg。
@@ -511,10 +515,11 @@ void balance_init(void)
     sys.camera_x_pid_run.kp = 0.0f;
     sys.camera_x_pid_run.ki = 0.0f;
     sys.camera_x_pid_run.kd = 0.0f;
+    sys.camera_x_pid_run.ts = 0.001f;
     sys.camera_x_pid_run.out_max = 20000.0f;
     sys.camera_x_pid_run.out_min = -20000.0f;
-    sys.camera_x_pid_run.i_term_max = 20000.0f;
-    sys.camera_x_pid_run.i_term_min = -20000.0f;
+    sys.camera_x_pid_run.i_term_max = BALL_I_TERM_LIMIT_DEG;
+    sys.camera_x_pid_run.i_term_min = -BALL_I_TERM_LIMIT_DEG;
 
     pitchmotor.setSpeed = ROD_DEFAULT_SPEED_DPS;
     pitchmotor.setAcc = ROD_DEFAULT_ACC;
