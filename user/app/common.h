@@ -347,8 +347,8 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value);
 void ball_balance_static_ctrl(sys_t *sys, float target_cm);
 void ball_balance_running_ctrl(sys_t *sys, float target_cm);
 void ball_balance_set_chassis_ff(float ff_deg);
-extern volatile uint8_t rod_cmd_limit_test_enable; // Keil 调试用：置 1 后进入 PID 限幅测试
-extern volatile uint32_t rod_pid_test_run_cnt;  // Keil 调试用：PID 限幅测试分支运行计数
+extern volatile uint8_t rod_cmd_limit_test_enable; // Keil 调试用：置 1 后进入状态反馈限幅调试
+extern volatile uint32_t rod_pid_test_run_cnt;  // Keil 调试用：状态反馈限幅调试分支运行计数
 uint8_t balance_rod_limit_test_enabled(void);
 void balance_rod_limit_test_update(void);
 uint8_t balance_rod_cmd_limit_test_enabled(void);

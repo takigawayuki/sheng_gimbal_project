@@ -24,7 +24,7 @@ volatile uint32_t key_enter_cnt = 0;
 
 void User_TIM_Init(void)
 {
-    HAL_TIM_Base_Start_IT(&htim7); // TIM7 1ms 中断
+    HAL_TIM_Base_Start_IT(&htim7); // TIM7 1ms 中断 1kHz的控制频率
     HAL_TIM_Base_Start_IT(&htim8); // TIM8 10ms 中断，给 MPU9250 预留的
 }
 

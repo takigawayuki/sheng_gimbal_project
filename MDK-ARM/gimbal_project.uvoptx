@@ -270,6 +270,16 @@
           <WinNumber>1</WinNumber>
           <ItemText>dbg_vision_velocity_cm_s</ItemText>
         </Ww>
+        <Ww>
+          <count>23</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>sys.value.ball_vel_cm_s</ItemText>
+        </Ww>
+        <Ww>
+          <count>24</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rod_outer_loop_div_ms,0x0A</ItemText>
+        </Ww>
       </WatchWindow1>
       <Tracepoint>
         <THDelay>0</THDelay>
