@@ -3,7 +3,6 @@
 
 // extern volatile uint8_t target_valid;
 // extern volatile uint32_t target_lost_cnt;
-// extern volatile uint8_t aim_stable_frames = 0;
 
 
 /* ================= H题：视觉数据换算 =================

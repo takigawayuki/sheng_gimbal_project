@@ -102,7 +102,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         // if (ev_enter == KEY_EVENT_SHORT)
         //     key_enter_cnt++;
 
-        // menu_update(ev_menu, ev_enter);
+        menu_update(ev_menu, ev_enter);
 
         gimbal_task_state(); // 每 1ms 执行一次
 

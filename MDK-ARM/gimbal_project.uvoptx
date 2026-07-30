@@ -280,6 +280,16 @@
           <WinNumber>1</WinNumber>
           <ItemText>rod_outer_loop_div_ms,0x0A</ItemText>
         </Ww>
+        <Ww>
+          <count>25</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>sys.ctrl.rod_angle_cmd_deg</ItemText>
+        </Ww>
+        <Ww>
+          <count>26</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>ball_task3_minus_balance_ff_deg</ItemText>
+        </Ww>
       </WatchWindow1>
       <Tracepoint>
         <THDelay>0</THDelay>

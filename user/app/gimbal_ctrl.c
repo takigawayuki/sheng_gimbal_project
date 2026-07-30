@@ -1,216 +1,14 @@
 #include "common.h"
-#include "ZhangDaTou.h"
 #include "math.h"
 
-// #define SEARCH_TIMEOUT 5000 // 假设找靶超时时间为5000ms
-
-#define AIM_STABLE_CNT 300  // 1ms tick 计数，连续 300 次稳 → 开
-#define AIM_STABLE_FRAMES 5 // 连续 5 帧稳定才开激光
-
-#define AIM_UNSTABLE_CNT 20 // 连续 20 次不稳才关
-#define AIM_THRESHOLD 3.0f  // 允许误差（像素）
-
-// #define LASER_K 0.0f
-// #define LASER_B 0.0f
-
-#define LOST_BACK_TO_SEARCH_CNT 300 // 连续 300ms 丢靶 → 回搜索
-
 sys_t sys;
-// gimbal_sm_t gimbal_sm_obj = {GIMBAL_IDLE, 0, 0, 1};
-gimbal_sm_t gimbal_sm_obj = {GIMBAL_IDLE, 0, 0};
+gimbal_sm_t gimbal_sm_obj = {GIMBAL_IDLE, 0, 0, 0, 0, 0.0f};
 
 volatile uint32_t target_lost_cnt = 0;
-// volatile uint8_t target_valid = 0;
-volatile uint8_t aim_stable_frames = 0;
-
-uint16_t stable_cnt = 0;
-uint16_t unstable_cnt = 0;
-uint8_t laser_on = 0;
+volatile uint8_t balance_state_machine_enable = 0U; // 默认不自动运行题号状态机，只接收视觉，菜单确认后启动题3
 
 extern float yaw_pos;
 
-volatile uint8_t balance_state_machine_enable = 0U; // 默认不自动运行题号状态机，只接收视觉和等待手动调试
-
-// 给发挥题判断用的
-#define AIM_CENTER_X_ERR 3.0f
-#define AIM_CENTER_Y_ERR 3.0f
-
-/*** target_stable ***/
-uint8_t target_stable(void)
-{
-    // if (!target_found())
-    //     return 0; // 没数据 → 不稳
-
-    if (fabs(sys.value.camera_x) < AIM_THRESHOLD &&
-        fabs(sys.value.camera_y) < AIM_THRESHOLD)
-        return 1;
-    return 0;
-}
-
-static void gimbal_pid_ctrl_10ms(void)
-{
-    static uint16_t pid_test_cnt = 0;
-
-    if (++pid_test_cnt >= 10)
-    {
-        pid_test_cnt = 0;
-        camera_x_pid_ctrl(&sys, 0.0f);
-        camera_y_pid_ctrl(&sys, 0.0f);
-        // camera_x_pid_run_ctrl(&sys, 0.0f);
-        // camera_y_pid_run_ctrl(&sys, 0.0f);
-    }
-}
-
-static void gimbal_pid_ctrl_run_10ms(void)
-{
-
-    static uint16_t pid_test_cnt = 0;
-
-    if (++pid_test_cnt >= 10)
-    {
-        pid_test_cnt = 0;
-        // camera_x_pid_ctrl(&sys, 0.0f);
-        // camera_y_pid_ctrl(&sys, 0.0f);
-        camera_x_pid_run_ctrl(&sys, 0.0f);
-        camera_y_pid_run_ctrl(&sys, 0.0f);
-    }
-}
-
-static void gimbal_pid_ctrl_run_1ms(void)
-{
-    camera_x_pid_run_ctrl(&sys, 0.0f);
-    camera_y_pid_run_ctrl(&sys, 0.0f);
-}
-
-void gimbal_task_state_legacy(void)
-{
-
-    if (!balance_state_machine_enable)
-    {
-        /* 默认只接收视觉，不自动回中、不跑题号状态机、不下发摆杆命令。 */
-        return;
-    }
-
-    switch (gimbal_sm_obj.state)
-    {
-    case GIMBAL_IDLE:
-        // 速度位置模式
-        ZhangDaTou_PositionSpeedctr(&yawmotor, yawmotor.setSpeed, 0.0f, yawmotor.setAcc);
-        ZhangDaTou_Control(&yawmotor);
-        ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, 0.0f, pitchmotor.setAcc);
-        ZhangDaTou_Control(&pitchmotor);
-
-        HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_RESET);
-        stable_cnt = 0;
-        unstable_cnt = 0;
-        laser_on = 0;
-        break;
-
-    case GIMBAL_SEARCH_LEFT:
-        // 转移：看到目标 → TRACK
-        if (sys.value.camera_x != 0)
-        {
-            gimbal_sm_obj.state = GIMBAL_STATIC_TRACK;
-            break; // 这一 tick 不执行 SEARCH 动作，下 tick 走 TRACK
-        }
-        // 速度模式
-        ZhangDaTou_Speedctr(&yawmotor, -100.0f, 2000);
-        ZhangDaTou_Control(&yawmotor);
-
-        HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_RESET);
-        break;
-
-    case GIMBAL_SEARCH_RIGHT:
-        // 转移：看到目标 → TRACK
-        if (sys.value.camera_x != 0)
-        {
-            gimbal_sm_obj.state = GIMBAL_STATIC_TRACK;
-            break; // 这一 tick 不执行 SEARCH 动作，下 tick 走 TRACK
-        }
-        // 速度模式
-        ZhangDaTou_Speedctr(&yawmotor, +100.0f, 2000);
-        ZhangDaTou_Control(&yawmotor);
-
-        HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_RESET);
-        break;
-
-    case GIMBAL_STATIC_TRACK:
-        // 激光控制：稳定够久才开，抖动够久才关
-        if (target_stable())
-        {
-            // unstable_cnt = 0;
-            if (stable_cnt < AIM_STABLE_CNT)
-                stable_cnt++;
-            if (stable_cnt >= AIM_STABLE_CNT && !laser_on)
-            {
-                HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_SET);
-                laser_on = 1;
-            }
-        }
-        else
-        {
-            stable_cnt = 0;
-        }
-
-        if (laser_on)
-        {
-            // 已锁定：保持锁定瞬间记录的位置，速度沿用配置的 setSpeed，PID 不跑
-            ZhangDaTou_PositionSpeedctr(&yawmotor, yawmotor.setSpeed, yawmotor.setPosition, yawmotor.setAcc);
-            ZhangDaTou_Control(&yawmotor);
-            ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, pitchmotor.setPosition, pitchmotor.setAcc);
-            ZhangDaTou_Control(&pitchmotor);
-        }
-        else
-        {
-            gimbal_pid_ctrl_10ms();
-        }
-        break;
-
-    case GIMBAL_DYNAMIC_TRACK:
-
-        gimbal_pid_ctrl_10ms();
-
-        // 激光控制：稳定够久才开，抖动够久才关
-        if (target_stable())
-        {
-            // unstable_cnt = 0;
-            if (stable_cnt < AIM_STABLE_CNT)
-                stable_cnt++;
-            if (stable_cnt >= AIM_STABLE_CNT && !laser_on)
-            {
-                HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_SET);
-                laser_on = 1;
-            }
-        }
-        else
-        {
-            stable_cnt = 0;
-        }
-        break;
-
-    case GIMBAL_DYNAMIC_RUNNING:
-        gimbal_pid_ctrl_run_10ms();
-
-        if (target_stable())
-        {
-            if (stable_cnt < AIM_STABLE_CNT)
-                stable_cnt++;
-            if (stable_cnt >= AIM_STABLE_CNT && !laser_on)
-            {
-                HAL_GPIO_WritePin(laser_GPIO_Port, laser_Pin, GPIO_PIN_SET);
-                laser_on = 1;
-            }
-        }
-        else
-        {
-            stable_cnt = 0;
-        }
-        break;
-
-    default:
-        break;
-    }
-}
 
 /* ================= H题：按题号划分的新状态机 =================
  * 说明：
@@ -223,13 +21,30 @@ void gimbal_task_state_legacy(void)
 /* 钢球认为稳定的误差范围。题目要求误差绝对值不大于 1cm，所以这里先用 1cm。 */
 #define BALL_STABLE_ERR_CM       1.0f
 
-/* 题3的两个目标点：先到 +5cm，再折返回 -5cm。 */
+/* 题3的目标路径：O 点 -> +5cm -> O 点 -> -5cm。 */
 #define BALL_TASK3_PLUS_CM       5.0f
 #define BALL_TASK3_MINUS_CM     -5.0f
+/* 题3把 +5cm 和 O 点都当过程点，不当长时间稳定点。
+ * 进入 +5cm 附近后先回 O 点减速，经过 O 点后再继续去 -5cm。
+ */
+#define BALL_TASK3_PLUS_HOLD_MS  30U
 
-/* 题3到达 +5cm 后至少稳定一小段时间，再切换到 -5cm，避免刚碰到目标就立刻折返。 */
-#define BALL_TASK3_PLUS_HOLD_MS  300U
-
+/* ================= 题3 Keil Watch 集中调试变量 =================
+ * 后续调题3时，Keil Watch 里直接搜 dbg_task3_。
+ * 这些变量不用重编就能改，方便现场只改一个区域，不用在多个文件里找宏。
+ */
+volatile float dbg_task3_turn_margin_cm = 1.0f;        // +5cm 折返点提前量，球到 5-margin 后切回 O 点
+volatile float dbg_task3_center_margin_cm = 0.5f;      // +5cm 回 O 点时，球进 O 点附近多少 cm 后进入去 -5cm 阶段
+volatile float dbg_task3_target_reached_cm = 0.2f;     // 平滑目标回到 O 点附近的判断阈值
+volatile float dbg_task3_target_slew_cm_s = 6.0f;      // 题3前两段目标斜坡速度，单位 cm/s
+volatile float dbg_task3_minus_slew_cm_s = 4.0f;       // 题3第三段去 -5cm 的目标斜坡速度
+volatile float dbg_task3_minus_brake_start_cm = -3.5f; // 题3第三段提前刹车起点，球到该位置后降低目标斜坡速度
+volatile float dbg_task3_minus_brake_slew_cm_s = 0.5f; // 题3第三段提前刹车后的慢速斜坡
+volatile float dbg_task3_overrun_margin_cm = 0.3f;     // 超限柔性回拉触发余量，超过目标多少 cm 且继续向外滚时启用
+volatile float dbg_task3_overrun_vel_cm_s = 1.0f;      // 超限柔性回拉速度门槛，过滤小速度噪声
+volatile float dbg_task3_overrun_pullback_cm = 0.0f;   // 超限后临时目标往 O 点方向退多少 cm，不再直接拉回 O 点
+volatile float dbg_task3_minus_output_scale = 1.0f;   // 题3第三阶段去 -5cm 时的 PID 输出缩放
+volatile float dbg_task3_minus_balance_ff_deg = 0.0f;  // 题3第三阶段 -5cm 静态平衡补偿角度，单位 deg
 /* 题3总时间要求不超过 5s，这里用 5000ms 做结束判定参考。 */
 #define BALL_TASK3_TOTAL_MS     5000U
 
@@ -251,6 +66,7 @@ static void balance_reset_runtime(void)
     gimbal_sm_obj.stable_ms = 0;         // 稳定计时清零
     gimbal_sm_obj.task3_phase = 0;       // 题3从第一阶段开始：先去 +5cm
     gimbal_sm_obj.finished = 0;          // 任务完成标志清零
+    gimbal_sm_obj.task3_target_cmd_cm = 0.0f; // 题3平滑目标从 O 点开始
     sys.value.task_run_time_ms = 0;      // 对外显示的任务计时清零
     sys.value.car_run_time_ms = 0;       // 对外显示的小车计时清零
 }
@@ -279,6 +95,52 @@ static uint8_t balance_ball_stable(void)
     return (fabsf(sys.value.ball_pos_cm - sys.ctrl.ball_target_cm) <= BALL_STABLE_ERR_CM) ? 1U : 0U;
 }
 
+static uint8_t balance_task3_plus_turn_reached(void)
+{
+    /* +5cm 是折返点，不是最终停车点。
+     * 注意：这里不能用 stable_ms 判断。题3平滑目标从 0cm 起步，球一开始就在 O 点附近，
+     * 如果用 stable_ms 会误判为已经到达 +5cm，导致状态机直接跳到 -5cm。
+     */
+    return (sys.value.ball_pos_cm >= (BALL_TASK3_PLUS_CM - dbg_task3_turn_margin_cm)) ? 1U : 0U;
+}
+
+static uint8_t balance_task3_center_reached(void)
+{
+    /* 从 +5cm 折返回来时，经过 O 点附近就进入第三阶段。
+     * 必须同时满足“平滑目标已经回到 O 点附近”和“球也回到 O 点附近”，
+     * 防止第二阶段刚开始就因为球还在原点附近而直接跳到 -5cm。
+     */
+    if (fabsf(gimbal_sm_obj.task3_target_cmd_cm) > dbg_task3_target_reached_cm)
+        return 0U;
+
+    return (sys.value.ball_pos_cm <= dbg_task3_center_margin_cm) ? 1U : 0U;
+}
+static float balance_task3_minus_slew_cm_s(void)
+{
+    /* 题3第三阶段提前刹车：
+     * 从 O 点去 -5cm 时，球到 -3.5cm 附近就把虚拟目标移动速度降下来。
+     * 这样到 -5cm 前先减速，减少到点后靠 PID 来回救的次数。
+     */
+    if (sys.value.ball_pos_cm <= dbg_task3_minus_brake_start_cm)
+        return dbg_task3_minus_brake_slew_cm_s;
+
+    return dbg_task3_minus_slew_cm_s;
+}
+static float balance_slew_target_cm(float current_cm, float target_cm, float slew_cm_s)
+{
+    float step_cm = slew_cm_s * 0.001f;
+
+    /* 题3目标斜坡：PID 看到的是一个会移动的虚拟终点，而不是 +5cm 到 -5cm 的瞬间跳变。
+     * 这样折返时摆杆不会一下子打到极限，钢球速度更容易被拉住。
+     */
+    if (current_cm < (target_cm - step_cm))
+        return current_cm + step_cm;
+
+    if (current_cm > (target_cm + step_cm))
+        return current_cm - step_cm;
+
+    return target_cm;
+}
 /* 更新稳定计时。
  * 只要钢球还在允许误差范围内，stable_ms 就持续累加；一旦跑出误差范围就清零。
  */
@@ -308,33 +170,63 @@ static void balance_tick_time(void)
     sys.value.car_run_time_ms = gimbal_sm_obj.elapsed_ms;
 }
 
-/* 题3：小车静止，控制钢球从 O 点到 +5cm，再折返回 -5cm。
+/* 题3：小车静止，控制钢球从 O 点到 +5cm，再回到 O 点减速，最后运行到 -5cm。
  * task3_phase = 0：控制目标为 +5cm。
- * task3_phase = 1：控制目标为 -5cm。
+ * task3_phase = 1：控制目标为 O 点，用中点当阶段终点来压速度。
+ * task3_phase = 2：控制目标为 -5cm，并稳定在 -5cm 附近。
  */
 static void balance_task3_static_pm5(void)
 {
     if (gimbal_sm_obj.task3_phase == 0U)
     {
-        /* 第一阶段：让钢球向 +5cm 运动。 */
-        ball_balance_static_ctrl(&sys, BALL_TASK3_PLUS_CM);
+        /* 第一阶段：让钢球向 +5cm 运动。
+         * 这里给 PID 的不是硬目标 +5cm，而是逐步靠近 +5cm 的平滑目标。
+         */
+        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
+                                                                    BALL_TASK3_PLUS_CM,
+                                                                    dbg_task3_target_slew_cm_s);
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
 
-        /* 到 +5cm 附近并稳定一小段时间后，切到第二阶段。 */
-        if (gimbal_sm_obj.stable_ms >= BALL_TASK3_PLUS_HOLD_MS)
+        /* 到 +5cm 折返点附近后，不直接去 -5cm，先回 O 点压速度。 */
+        if (balance_task3_plus_turn_reached())
         {
             gimbal_sm_obj.task3_phase = 1U;
             gimbal_sm_obj.stable_ms = 0;
 
-            /* 切换目标点时清掉 PID 的积分和上次误差，减少折返瞬间拖尾。 */
+            /* 切换过程点时清掉 PID 的积分和上次误差，减少折返瞬间拖尾。 */
+            sys.camera_x_pid.i_term = 0.0f;
+            sys.camera_x_pid.pre_err = 0.0f;
+        }
+    }
+    else if (gimbal_sm_obj.task3_phase == 1U)
+    {
+        /* 第二阶段：从 +5cm 折返回 O 点。
+         * O 点只是过程终点，用来把球速压下来，不在这里长时间停留。
+         */
+        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
+                                                                    0.0f,
+                                                                    dbg_task3_target_slew_cm_s);
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
+        balance_update_stable_counter();
+
+        /* 经过 O 点附近后，再进入第三阶段去 -5cm。 */
+        if (balance_task3_center_reached())
+        {
+            gimbal_sm_obj.task3_phase = 2U;
+            gimbal_sm_obj.stable_ms = 0;
+
             sys.camera_x_pid.i_term = 0.0f;
             sys.camera_x_pid.pre_err = 0.0f;
         }
     }
     else
     {
-        /* 第二阶段：让钢球折返回 -5cm，并持续稳定在 -5cm 附近。 */
-        ball_balance_static_ctrl(&sys, BALL_TASK3_MINUS_CM);
+        /* 第三阶段：让钢球从 O 点附近运行到 -5cm，并稳定在 -5cm 附近。 */
+        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
+                                                                    BALL_TASK3_MINUS_CM,
+                                                                    balance_task3_minus_slew_cm_s());
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
     }
 
@@ -342,7 +234,6 @@ static void balance_task3_static_pm5(void)
     if (gimbal_sm_obj.elapsed_ms >= BALL_TASK3_TOTAL_MS && balance_ball_stable())
         gimbal_sm_obj.finished = 1U;
 }
-
 /* 题4/题5/题6共用的运动保持控制。
  * target_cm 是本题钢球目标位置。
  * limit_ms 是本题时间上限。到达时间上限后置 finished，实际停车/循迹由小车部分处理。
@@ -393,7 +284,7 @@ void gimbal_task_state(void)
         break;
 
     case BALANCE_TASK3_STATIC_PLUS_TO_MINUS:
-        /* 题3：车静止，钢球 O 点 -> +5cm -> -5cm。 */
+        /* 题3：车静止，钢球 O 点 -> +5cm -> O 点 -> -5cm。 */
         balance_tick_time();
         balance_task3_static_pm5();
         break;
@@ -423,10 +314,8 @@ void gimbal_task_state(void)
         break;
 
     default:
-        /* 旧云台菜单状态仍保留。
-         * 如果误进入 GIMBAL_SEARCH_LEFT、GIMBAL_STATIC_TRACK 等旧状态，就走原来的云台逻辑，方便对照调试。
-         */
-        gimbal_task_state_legacy();
+        /* 非 H 题状态统一回空闲，不再保留旧激光云台状态机。 */
+        balance_task_start(GIMBAL_IDLE);
         break;
     }
 }

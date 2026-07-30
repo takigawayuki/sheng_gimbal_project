@@ -214,16 +214,10 @@ extern sys_t sys;
 // 云台状态机状态枚举
 typedef enum
 {
-  GIMBAL_IDLE = 0, // 待机，等待按键启动，电机停，激光关  基础1
-  // GIMBAL_SEARCH,
-  GIMBAL_SEARCH_LEFT,   // 基础2
-  GIMBAL_SEARCH_RIGHT,  // 基础2
-  GIMBAL_STATIC_TRACK,  // 基础2
-  GIMBAL_DYNAMIC_TRACK,   // 基础3
-  GIMBAL_DYNAMIC_RUNNING,   // 发挥
+  GIMBAL_IDLE = 0, // 空闲，不启动摆杆控制
 
   /* H题_车载平衡滚球运动控制系统：本摆杆工程只负责题3到题6 */
-  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// 题3：静止时 +5cm 后折返到 -5cm
+  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// 题3：静止时 O 点 -> +5cm -> O 点 -> -5cm
   BALANCE_TASK4_CAR_TO_B_CENTER,    // 题4：到 B 点，钢球稳在 O 点
   BALANCE_TASK5_CAR_LAP_CENTER,     // 题5：一圈，钢球稳在 O 点
   BALANCE_TASK6_CAR_LAP_SETPOINT,   // 题6：一圈，钢球稳在任意指定位置
@@ -233,20 +227,17 @@ typedef enum
 typedef struct
 {
   gimbal_state state;          // 当前状态
-  uint32_t search_timeout_cnt; // 找靶超时计数器
-  uint32_t aim_stable_cnt;     // 对准稳定计数器
-  // int8_t scan_dir;             // 扫描方向，1和-1
 
   /* H题任务运行参数 */
   uint32_t elapsed_ms; // 当前状态已运行时间，单位 ms，每次启动任务时清零
   uint32_t stable_ms;  // 钢球进入允许误差范围后的稳定计时，单位 ms
-  uint8_t task3_phase; // 题3阶段标志，0 表示先去 +5cm，1 表示折返回 -5cm
+  uint8_t task3_phase; // 题3阶段标志，0 去 +5cm，1 回 O 点减速，2 再去 -5cm
   uint8_t finished;     // 当前题目是否完成，1 表示状态机已达到结束条件
+  float task3_target_cmd_cm; // 题3给 PID 的平滑目标，避免 +5cm 到 O 点、O 点到 -5cm 瞬间跳变导致猛拉
 } gimbal_sm_t;
 
 extern gimbal_sm_t gimbal_sm_obj;
 extern volatile uint32_t target_lost_cnt;
-extern volatile uint8_t aim_stable_frames;
 
 /**
 ***********************************************************************
@@ -286,16 +277,11 @@ extern key_t key_enter; // PC3，用来确认/退出
 typedef enum
 {
   MENU_ITEM_STANDBY = 0,   // 待机（对应基础1）
-  // MENU_ITEM_TRACK_STATIC,  // 静态跟随（对应基础2）
-  MENU_ITEM_TRACK_STATIC_LEFT,    // ← 原 MENU_ITEM_TRACK_STATIC 改名/拆分
-  MENU_ITEM_TRACK_STATIC_RIGHT,   // ← 新加
-  MENU_ITEM_TRACK_DYNAMIC, // 动态跟随（对应基础3）
-  MENU_ITEM_RUNNING_DYNAMIC,  // 发挥
 
   MENU_ITEM_TASK3_STATIC_PM5,  // 题3
-  MENU_ITEM_TASK4_AB_CENTER,   // 题4
-  MENU_ITEM_TASK5_LAP_CENTER,  // 题5
-  MENU_ITEM_TASK6_LAP_SETPOINT,// 题6
+  // MENU_ITEM_TASK4_AB_CENTER,   // 题4：先不接入菜单，后续调题4时恢复
+  // MENU_ITEM_TASK5_LAP_CENTER,  // 题5：先不接入菜单，后续调题5时恢复
+  // MENU_ITEM_TASK6_LAP_SETPOINT,// 题6：先不接入菜单，后续调题6时恢复
 
   MENU_ITEM_COUNT          // 循环菜单状态
 } menu_item_t;
@@ -315,7 +301,6 @@ extern car_speak_rx_t car_speak_rx;
 /*** gimbal_ctrl.c ***/
 // uint8_t key_scan(void);
 // uint8_t target_found(void);
-uint8_t target_stable(void);
 // void gimbal_sm(void);
 void gimbal_task_state(void);
 extern volatile uint8_t balance_state_machine_enable; // Keil 调试用：置 1 后才允许题3/4/5/6状态机运行
@@ -349,6 +334,19 @@ void ball_balance_running_ctrl(sys_t *sys, float target_cm);
 void ball_balance_set_chassis_ff(float ff_deg);
 extern volatile uint8_t rod_cmd_limit_test_enable; // Keil 调试用：置 1 后进入状态反馈限幅调试
 extern volatile uint32_t rod_pid_test_run_cnt;  // Keil 调试用：状态反馈限幅调试分支运行计数
+/* 题3 Keil Watch 集中调试变量：定义在 gimbal_ctrl.c，Watch 里搜 dbg_task3_ */
+extern volatile float dbg_task3_turn_margin_cm;
+extern volatile float dbg_task3_center_margin_cm;
+extern volatile float dbg_task3_target_reached_cm;
+extern volatile float dbg_task3_target_slew_cm_s;
+extern volatile float dbg_task3_minus_slew_cm_s;
+extern volatile float dbg_task3_minus_brake_start_cm;
+extern volatile float dbg_task3_minus_brake_slew_cm_s;
+extern volatile float dbg_task3_overrun_margin_cm;
+extern volatile float dbg_task3_overrun_vel_cm_s;
+extern volatile float dbg_task3_overrun_pullback_cm;
+extern volatile float dbg_task3_minus_output_scale;
+extern volatile float dbg_task3_minus_balance_ff_deg;
 uint8_t balance_rod_limit_test_enabled(void);
 void balance_rod_limit_test_update(void);
 uint8_t balance_rod_cmd_limit_test_enabled(void);

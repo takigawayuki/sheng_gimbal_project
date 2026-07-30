@@ -340,8 +340,11 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
 #define ROD_MAX_DEG             8.0f
 #define ROD_DEFAULT_SPEED_DPS  80.0f
 #define ROD_DEFAULT_ACC      1000U
-#define BALL_I_TERM_LIMIT_DEG 1.0f       // H题积分项默认限幅，单位 deg；先小一点，防止积分把球越推越远
+#define BALL_I_TERM_LIMIT_DEG 5.0f       // H题积分项默认限幅，单位 deg；积分调试先集中看 sys.camera_x_pid.i_term
 
+/* 题3调试参数已经集中定义在 gimbal_ctrl.c 的 dbg_task3_ 区域。
+ * Keil Watch 里直接搜 dbg_task3_，这里不再单独放一组宏，避免现场调试到处找。
+ */
 /* 摆杆限幅测试开关。
  * 0U：正常运行题3/4/5/6状态机和 PID。
  * 1U：进入测试后会失能 pitchmotor，只读取反馈角度，不执行状态机 PID，不给摆杆下发位置命令。
@@ -358,7 +361,7 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  * sys.camera_x_pid.kp/ki/kd 在 Keil 里直接改：kp 是位置增益，ki 是小量积分补偿，kd 是速度阻尼增益。
  * 最终命令 = ROD_CENTER_DEG + 状态反馈输出，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
  */
-volatile uint8_t rod_cmd_limit_test_enable = 1U;
+volatile uint8_t rod_cmd_limit_test_enable = 0U;
 volatile uint32_t rod_pid_test_run_cnt = 0U;
 
 /* 运动题前馈补偿角度的安全限幅。
@@ -383,6 +386,29 @@ static void ball_pid_reset(pid_para_t *pid)
     pid->out_value = 0.0f;
 }
 
+static float ball_static_target_with_overrun(float target_cm, float pos_cm, float vel_cm_s)
+{
+    /* 静止题超限柔性回拉：
+     * 当球越过目标且继续向外滚时，不再把控制目标直接切到 O 点。
+     * 直接拉 O 点会导致球从 -5cm 被猛拉回 0cm，然后又重新去 -5cm，形成大幅来回晃。
+     * 现在只把临时目标往 O 点方向退一小段，用来刹车，但仍然围绕当前题目目标工作。
+     */
+    if (target_cm > 0.0f &&
+        pos_cm > (target_cm + dbg_task3_overrun_margin_cm) &&
+        vel_cm_s > dbg_task3_overrun_vel_cm_s)
+    {
+        return target_cm - dbg_task3_overrun_pullback_cm;
+    }
+
+    if (target_cm < 0.0f &&
+        pos_cm < (target_cm - dbg_task3_overrun_margin_cm) &&
+        vel_cm_s < -dbg_task3_overrun_vel_cm_s)
+    {
+        return target_cm + dbg_task3_overrun_pullback_cm;
+    }
+
+    return target_cm;
+}
 static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float pos_cm, float vel_cm_s)
 {
     float vel_error_cm_s;
@@ -541,13 +567,28 @@ void ball_balance_stop(void)
 void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
 {
     float rod_cmd;
+    float ctrl_target_cm;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
+    ctrl_target_cm = ball_static_target_with_overrun(target_cm,
+                                                     sys_obj->value.ball_pos_cm,
+                                                     sys_obj->value.ball_vel_cm_s);
+
     ball_state_feedback_calc(&sys_obj->camera_x_pid,
-                             target_cm,
+                             ctrl_target_cm,
                              sys_obj->value.ball_pos_cm,
                              sys_obj->value.ball_vel_cm_s);
 
+    /* 题3第三阶段去 -5cm 时单独压小摆杆输出。
+     * 你的实测现象是 -5 侧抬杆幅度偏大、需要抬好几下，而 +5 侧比较合适，
+     * 所以这里只处理 phase=2，不影响 O->+5 和 +5->O 两段。
+     */
+    if ((gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS) &&
+        (gimbal_sm_obj.task3_phase == 2U))
+    {
+        sys_obj->camera_x_pid.out_value *= dbg_task3_minus_output_scale;
+        sys_obj->camera_x_pid.out_value += dbg_task3_minus_balance_ff_deg;
+    }
     rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid.out_value;
     ball_balance_apply_cmd(sys_obj, rod_cmd);
 }
