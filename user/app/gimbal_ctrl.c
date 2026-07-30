@@ -373,7 +373,7 @@ void gimbal_task_state(void)
 
     if (balance_rod_cmd_limit_test_enabled())
     {
-        /* 摆杆 PID 调试模式：Keil 手动调 kp/ki/kd 和目标位置，反馈位置由视觉更新。 */
+        /* 摆杆状态反馈调试模式：Keil 手动调 kp/kd 和目标位置，位置/速度由视觉更新。 */
         balance_rod_cmd_limit_test_update();
         return;
     }

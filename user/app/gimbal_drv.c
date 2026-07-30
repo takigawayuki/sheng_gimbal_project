@@ -331,9 +331,9 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
 /* ================= H题：摆杆滚球控制 =================
  * pitchmotor 复用为摆杆电机。
  * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG 必须实测后填写。
- * 题3使用静态 PID；题4/5/6使用运动 PID，并预留底盘前馈补偿量。
+ * 题3使用静态状态反馈；题4/5/6使用运动状态反馈，并预留底盘前馈补偿量。
  * 测摆杆机械限幅时，把 ROD_LIMIT_TEST_ENABLE 改成 1U。
- * 手动调 PID 时，打开 rod_cmd_limit_test_enable，反馈位置由视觉更新到 sys.value.ball_pos_cm。
+ * 手动调状态反馈时，打开 rod_cmd_limit_test_enable，反馈位置和速度由视觉更新。
  */
 #define ROD_CENTER_DEG          0.0f        // 摆杆物理水平位置对应的 pitchmotor 反馈角度，必须实测填写
 #define ROD_MIN_DEG            -10.0f
@@ -349,13 +349,13 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  */
 #define ROD_LIMIT_TEST_ENABLE   0U
 
-/* 摆杆 PID 限幅调试变量。
+/* 摆杆状态反馈限幅调试变量。
  * 这些变量是给 Keil Watch 手动改的，不需要每次重编。
- * rod_cmd_limit_test_enable = 1：进入 PID 限幅测试模式，状态机不跑题3/4/5/6。
+ * rod_cmd_limit_test_enable = 1：进入状态反馈限幅测试模式，状态机不跑题3/4/5/6。
  * sys.ctrl.ball_target_cm：手动给 PID 目标位置，单位 cm。
- * sys.value.ball_pos_cm：视觉更新的 PID 反馈位置，单位 cm。
- * sys.camera_x_pid.kp/ki/kd 在 Keil 里直接改，例如 kp 改成 0.01f。
- * 最终命令 = ROD_CENTER_DEG + sys.camera_x_pid.out_value，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
+ * sys.value.ball_pos_cm：视觉更新的钢球位置反馈，单位 cm。
+ * sys.camera_x_pid.kp/kd 在 Keil 里直接改：kp 是位置增益，kd 是速度阻尼增益，ki 暂时不用。
+ * 最终命令 = ROD_CENTER_DEG + 状态反馈输出，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
  */
 volatile uint8_t rod_cmd_limit_test_enable = 1U;
 volatile uint32_t rod_pid_test_run_cnt = 0U;
@@ -380,6 +380,36 @@ static void ball_pid_reset(pid_para_t *pid)
     pid->i_term = 0.0f;
     pid->pre_err = 0.0f;
     pid->out_value = 0.0f;
+}
+
+static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float pos_cm, float vel_cm_s)
+{
+    float vel_error_cm_s;
+
+    /* 状态反馈外环：位置误差 + 速度阻尼。
+     * kp：位置增益，把钢球拉向目标位置。
+     * kd：速度阻尼，钢球速度越大，越提前反向刹车。
+     * ki 暂时不用，滚球系统先不要加积分，避免越积越晃。
+     */
+    pid->ref_value = target_cm;
+    pid->fback_value = pos_cm;
+    pid->error = pid->ref_value - pid->fback_value;
+
+    vel_error_cm_s = 0.0f - vel_cm_s;
+
+    pid->p_term = pid->kp * pid->error;
+    pid->i_term = 0.0f;
+    pid->d_term = pid->kd * vel_error_cm_s;
+    pid->pre_err = pid->error;
+
+    pid->out_value = pid->p_term + pid->d_term;
+
+    if (pid->out_value > pid->out_max)
+        pid->out_value = pid->out_max;
+    else if (pid->out_value < pid->out_min)
+        pid->out_value = pid->out_min;
+
+    return pid->out_value;
 }
 
 uint8_t balance_rod_limit_test_enabled(void)
@@ -426,12 +456,13 @@ void balance_rod_cmd_limit_test_update(void)
     static uint8_t pitch_enable_sent = 0U;
     float rod_cmd;
 
-    /* PID 限幅测试模式会真正运行 sys.camera_x_pid。
+    /* 状态反馈限幅调试模式会真正运行 sys.camera_x_pid。
      * 在 Keil Watch 里手动修改：
-     * 1. sys.camera_x_pid.kp / ki / kd
-     * 2. sys.ctrl.ball_target_cm 作为 PID 目标位置，单位 cm
-     * 3. sys.value.ball_pos_cm 作为 PID 反馈位置，单位 cm
-     * 然后观察 rod_pid_test_run_cnt、sys.camera_x_pid.error/out_value 和 sys.ctrl.rod_angle_cmd_deg。
+     * 1. sys.camera_x_pid.kp：小球位置误差增益
+     * 2. sys.camera_x_pid.kd：小球速度阻尼增益，sys.camera_x_pid.ki 暂时不用
+     * 3. sys.ctrl.ball_target_cm 作为小球目标位置，单位 cm
+     * 4. sys.value.ball_pos_cm / sys.value.ball_vel_cm_s 作为视觉反馈，单位 cm / cm/s
+     * 然后观察 rod_pid_test_run_cnt、sys.camera_x_pid.error/p_term/d_term/out_value 和 sys.ctrl.rod_angle_cmd_deg。
      * 注意：这里不覆盖 sys.value.ball_pos_cm，方便直接使用视觉实时反馈。
      */
     if (!pitch_enable_sent)
@@ -445,7 +476,10 @@ void balance_rod_cmd_limit_test_update(void)
     sys.value.ball_pos_raw_cm = sys.value.ball_pos_cm;
     sys.ctrl.rod_chassis_ff_deg = 0.0f;
 
-    parallel_pid_ctrl(&sys.camera_x_pid, sys.ctrl.ball_target_cm, sys.value.ball_pos_cm);
+    ball_state_feedback_calc(&sys.camera_x_pid,
+                             sys.ctrl.ball_target_cm,
+                             sys.value.ball_pos_cm,
+                             sys.value.ball_vel_cm_s);
 
     rod_cmd = ROD_CENTER_DEG + sys.camera_x_pid.out_value;
     ball_balance_apply_cmd(&sys, rod_cmd);
@@ -504,7 +538,10 @@ void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
     float rod_cmd;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
-    parallel_pid_ctrl(&sys_obj->camera_x_pid, target_cm, sys_obj->value.ball_pos_cm);
+    ball_state_feedback_calc(&sys_obj->camera_x_pid,
+                             target_cm,
+                             sys_obj->value.ball_pos_cm,
+                             sys_obj->value.ball_vel_cm_s);
 
     rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid.out_value;
     ball_balance_apply_cmd(sys_obj, rod_cmd);
@@ -526,7 +563,10 @@ void ball_balance_running_ctrl(sys_t *sys_obj, float target_cm)
     float chassis_ff_deg;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
-    parallel_pid_ctrl(&sys_obj->camera_x_pid_run, target_cm, sys_obj->value.ball_pos_cm);
+    ball_state_feedback_calc(&sys_obj->camera_x_pid_run,
+                             target_cm,
+                             sys_obj->value.ball_pos_cm,
+                             sys_obj->value.ball_vel_cm_s);
 
     /* 运动题前馈占位量。
      * 当前默认是 0deg，不影响闭环；后续底盘补偿只需要改 sys.ctrl.rod_chassis_ff_deg。
