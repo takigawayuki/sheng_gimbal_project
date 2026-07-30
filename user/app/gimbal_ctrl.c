@@ -356,8 +356,15 @@ void gimbal_task_state(void)
 {
     if (balance_rod_limit_test_enabled())
     {
-        /* 摆杆限幅测试模式：只读 pitchmotor 反馈，不执行题3/4/5/6状态机。 */
+        /* 摆杆机械限幅测试模式：失能 pitchmotor，只读反馈，不执行题3/4/5/6状态机。 */
         balance_rod_limit_test_update();
+        return;
+    }
+
+    if (balance_rod_cmd_limit_test_enabled())
+    {
+        /* 摆杆 PID 限幅测试模式：Keil 手动调 kp/ki/kd、sys.ctrl.ball_target_cm、sys.value.ball_pos_cm。 */
+        balance_rod_cmd_limit_test_update();
         return;
     }
 

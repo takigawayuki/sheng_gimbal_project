@@ -118,20 +118,23 @@ int main(void)
   //   HAL_Delay(100);
   // }
 
+  // H
   // ZhangDaTou_Enable(&pitchmotor, 0);
   // HAL_Delay(5);
   // ZhangDaTou_Enable(&yawmotor, 0);
   // HAL_Delay(5);
 
+  // H
   ZhangDaTou_Enable(&pitchmotor, 1);
   HAL_Delay(5);
-  ZhangDaTou_Enable(&yawmotor, 1);
-  HAL_Delay(5);
+  // ZhangDaTou_Enable(&yawmotor, 1);
+  // HAL_Delay(5);
 
+  // H
   ZhangDaTou_StartPosFeedback(&pitchmotor, 5);
   HAL_Delay(50);
-  ZhangDaTou_StartPosFeedback(&yawmotor, 5);
-  HAL_Delay(50);
+  // ZhangDaTou_StartPosFeedback(&yawmotor, 5);
+  // HAL_Delay(50);
 
   // CarSpeak_UART_RxStart();
 

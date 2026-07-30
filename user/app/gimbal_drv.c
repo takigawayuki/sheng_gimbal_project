@@ -333,20 +333,32 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG 必须实测后填写。
  * 题3使用静态 PID；题4/5/6使用运动 PID，并预留底盘前馈补偿量。
  * 测摆杆机械限幅时，把 ROD_LIMIT_TEST_ENABLE 改成 1U。
+ * 测 PID/命令最终限幅时，在 Keil Watch 里改 rod_cmd_limit_test_enable、sys.ctrl.ball_target_cm、sys.value.ball_pos_cm。
  */
-#define ROD_CENTER_DEG          0.0f
-#define ROD_MIN_DEG            -8.0f
+#define ROD_CENTER_DEG          0.0f        // 摆杆物理水平位置对应的 pitchmotor 反馈角度，必须实测填写
+#define ROD_MIN_DEG            -10.0f
 #define ROD_MAX_DEG             8.0f
 #define ROD_DEFAULT_SPEED_DPS  80.0f
 #define ROD_DEFAULT_ACC      1000U
 
 /* 摆杆限幅测试开关。
  * 0U：正常运行题3/4/5/6状态机和 PID。
- * 1U：只读取 pitchmotor 反馈角度，不执行状态机 PID，不给摆杆下发位置命令。
+ * 1U：进入测试后会失能 pitchmotor，只读取反馈角度，不执行状态机 PID，不给摆杆下发位置命令。
  * 测试方法：打开后烧录，手动转摆杆到机械最低/最高安全位置，记录 pitch_pos 或 sys.value.rod_angle_deg。
  * 记录值分别填入 ROD_MIN_DEG / ROD_MAX_DEG，水平位置填入 ROD_CENTER_DEG。
  */
 #define ROD_LIMIT_TEST_ENABLE   0U
+
+/* 摆杆 PID 限幅调试变量。
+ * 这些变量是给 Keil Watch 手动改的，不需要每次重编。
+ * rod_cmd_limit_test_enable = 1：进入 PID 限幅测试模式，状态机不跑题3/4/5/6。
+ * sys.ctrl.ball_target_cm：手动给 PID 目标位置，单位 cm。
+ * sys.value.ball_pos_cm：手动给 PID 反馈位置，单位 cm。
+ * sys.camera_x_pid.kp/ki/kd 在 Keil 里直接改，例如 kp 改成 0.01f。
+ * 最终命令 = ROD_CENTER_DEG + sys.camera_x_pid.out_value，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
+ */
+volatile uint8_t rod_cmd_limit_test_enable = 1U;
+volatile uint32_t rod_pid_test_run_cnt = 0U;
 
 /* 运动题前馈补偿角度的安全限幅。
  * 先占位用，默认前馈为 0deg；后面底盘给出加速度/速度补偿后，再把值写入 sys.ctrl.rod_chassis_ff_deg。
@@ -382,9 +394,17 @@ uint8_t balance_rod_limit_test_enabled(void)
 void balance_rod_limit_test_update(void)
 {
 #if ROD_LIMIT_TEST_ENABLE
+    static uint8_t pitch_disable_sent = 0U;
+
     /* 限幅测试模式只读电机反馈，不下发任何摆杆控制命令。
-     * 此时可以手动转动摆杆，观察 pitch_pos 或 sys.value.rod_angle_deg。
+     * 第一次进入测试模式时失能 pitchmotor，这样可以手动转动摆杆。
      */
+    if (!pitch_disable_sent)
+    {
+        ZhangDaTou_Enable(&pitchmotor, 0);
+        pitch_disable_sent = 1U;
+    }
+
     yaw_pos = ZhangDaTou_getPositionDate(&yawmotor);
     pitch_pos = ZhangDaTou_getPositionDate(&pitchmotor);
 
@@ -394,6 +414,41 @@ void balance_rod_limit_test_update(void)
     ball_pid_reset(&sys.camera_x_pid);
     ball_pid_reset(&sys.camera_x_pid_run);
 #endif
+}
+
+uint8_t balance_rod_cmd_limit_test_enabled(void)
+{
+    return (rod_cmd_limit_test_enable != 0U) ? 1U : 0U;
+}
+
+void balance_rod_cmd_limit_test_update(void)
+{
+    static uint8_t pitch_enable_sent = 0U;
+    float rod_cmd;
+
+    /* PID 限幅测试模式会真正运行 sys.camera_x_pid。
+     * 在 Keil Watch 里手动修改：
+     * 1. sys.camera_x_pid.kp / ki / kd
+     * 2. sys.ctrl.ball_target_cm 作为 PID 目标位置，单位 cm
+     * 3. sys.value.ball_pos_cm 作为 PID 反馈位置，单位 cm
+     * 然后观察 rod_pid_test_run_cnt、sys.camera_x_pid.error/out_value 和 sys.ctrl.rod_angle_cmd_deg。
+     * 注意：这里不再覆盖 sys.ctrl.ball_target_cm 和 sys.value.ball_pos_cm，方便 Keil 手动改值。
+     */
+    if (!pitch_enable_sent)
+    {
+        /* 这里在 TIM 中断里执行，不能调用 HAL_Delay()，否则 PID 可能根本跑不到。 */
+        ZhangDaTou_Enable(&pitchmotor, 1);
+        pitch_enable_sent = 1U;
+    }
+
+    rod_pid_test_run_cnt++;
+    sys.value.ball_pos_raw_cm = sys.value.ball_pos_cm;
+    sys.ctrl.rod_chassis_ff_deg = 0.0f;
+
+    parallel_pid_ctrl(&sys.camera_x_pid, sys.ctrl.ball_target_cm, sys.value.ball_pos_cm);
+
+    rod_cmd = ROD_CENTER_DEG + sys.camera_x_pid.out_value;
+    ball_balance_apply_cmd(&sys, rod_cmd);
 }
 
 void balance_init(void)
@@ -439,8 +494,8 @@ void ball_balance_stop(void)
     sys.ctrl.rod_angle_cmd_deg = ROD_CENTER_DEG;
     sys.ctrl.rod_chassis_ff_deg = 0.0f;
 
-    ZhangDaTou_PositionSpeedctr(&pitchmotor, ROD_DEFAULT_SPEED_DPS, ROD_CENTER_DEG, ROD_DEFAULT_ACC);   // 位置模式摆杆回中
-    ZhangDaTou_Control(&pitchmotor);
+    /* 回中也走 ball_balance_apply_cmd()，保证 ROD_CENTER_DEG 写错或未实测时不会越过 pitch 轴限幅。 */
+    ball_balance_apply_cmd(&sys, ROD_CENTER_DEG);
 }
 
 // 静止时的一套
@@ -484,6 +539,9 @@ void ball_balance_running_ctrl(sys_t *sys_obj, float target_cm)
 
 static void ball_balance_apply_cmd(sys_t *sys_obj, float rod_cmd)
 {
+    /* pitch 轴最终安全限幅。
+     * 所有题3/4/5/6的摆杆目标角度，最后都必须经过这里再下发给 pitchmotor。
+     */
     rod_cmd = balance_clampf(rod_cmd, ROD_MIN_DEG, ROD_MAX_DEG);
 
     sys_obj->ctrl.rod_angle_cmd_deg = rod_cmd;         // 记录最终发给摆杆电机的目标角度，单位 deg
