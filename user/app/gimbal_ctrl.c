@@ -29,6 +29,8 @@ uint8_t laser_on = 0;
 
 extern float yaw_pos;
 
+volatile uint8_t balance_state_machine_enable = 0U; // 默认不自动运行题号状态机，只接收视觉和等待手动调试
+
 // 给发挥题判断用的
 #define AIM_CENTER_X_ERR 3.0f
 #define AIM_CENTER_Y_ERR 3.0f
@@ -82,6 +84,13 @@ static void gimbal_pid_ctrl_run_1ms(void)
 
 void gimbal_task_state_legacy(void)
 {
+
+    if (!balance_state_machine_enable)
+    {
+        /* 默认只接收视觉，不自动回中、不跑题号状态机、不下发摆杆命令。 */
+        return;
+    }
+
     switch (gimbal_sm_obj.state)
     {
     case GIMBAL_IDLE:
@@ -253,6 +262,7 @@ static void balance_reset_runtime(void)
 void balance_task_start(gimbal_state state)
 {
     balance_reset_runtime();
+    balance_state_machine_enable = (state == GIMBAL_IDLE) ? 0U : 1U;
     gimbal_sm_obj.state = state;
     sys.ctrl.ball_target_cm = (state == BALANCE_TASK6_CAR_LAP_SETPOINT) ? sys.ctrl.ball_task6_target_cm : 0.0f;
 
@@ -363,8 +373,14 @@ void gimbal_task_state(void)
 
     if (balance_rod_cmd_limit_test_enabled())
     {
-        /* 摆杆 PID 限幅测试模式：Keil 手动调 kp/ki/kd、sys.ctrl.ball_target_cm、sys.value.ball_pos_cm。 */
+        /* 摆杆 PID 调试模式：Keil 手动调 kp/ki/kd 和目标位置，反馈位置由视觉更新。 */
         balance_rod_cmd_limit_test_update();
+        return;
+    }
+
+    if (!balance_state_machine_enable)
+    {
+        /* 默认只接收视觉，不自动回中、不跑题号状态机、不下发摆杆命令。 */
         return;
     }
 

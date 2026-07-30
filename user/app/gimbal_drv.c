@@ -333,7 +333,7 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG 必须实测后填写。
  * 题3使用静态 PID；题4/5/6使用运动 PID，并预留底盘前馈补偿量。
  * 测摆杆机械限幅时，把 ROD_LIMIT_TEST_ENABLE 改成 1U。
- * 测 PID/命令最终限幅时，在 Keil Watch 里改 rod_cmd_limit_test_enable、sys.ctrl.ball_target_cm、sys.value.ball_pos_cm。
+ * 手动调 PID 时，打开 rod_cmd_limit_test_enable，反馈位置由视觉更新到 sys.value.ball_pos_cm。
  */
 #define ROD_CENTER_DEG          0.0f        // 摆杆物理水平位置对应的 pitchmotor 反馈角度，必须实测填写
 #define ROD_MIN_DEG            -10.0f
@@ -353,7 +353,7 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
  * 这些变量是给 Keil Watch 手动改的，不需要每次重编。
  * rod_cmd_limit_test_enable = 1：进入 PID 限幅测试模式，状态机不跑题3/4/5/6。
  * sys.ctrl.ball_target_cm：手动给 PID 目标位置，单位 cm。
- * sys.value.ball_pos_cm：手动给 PID 反馈位置，单位 cm。
+ * sys.value.ball_pos_cm：视觉更新的 PID 反馈位置，单位 cm。
  * sys.camera_x_pid.kp/ki/kd 在 Keil 里直接改，例如 kp 改成 0.01f。
  * 最终命令 = ROD_CENTER_DEG + sys.camera_x_pid.out_value，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
  */
@@ -432,7 +432,7 @@ void balance_rod_cmd_limit_test_update(void)
      * 2. sys.ctrl.ball_target_cm 作为 PID 目标位置，单位 cm
      * 3. sys.value.ball_pos_cm 作为 PID 反馈位置，单位 cm
      * 然后观察 rod_pid_test_run_cnt、sys.camera_x_pid.error/out_value 和 sys.ctrl.rod_angle_cmd_deg。
-     * 注意：这里不再覆盖 sys.ctrl.ball_target_cm 和 sys.value.ball_pos_cm，方便 Keil 手动改值。
+     * 注意：这里不覆盖 sys.value.ball_pos_cm，方便直接使用视觉实时反馈。
      */
     if (!pitch_enable_sent)
     {
@@ -465,10 +465,10 @@ void balance_init(void)
     sys.camera_x_pid.kp = 0.0f;
     sys.camera_x_pid.ki = 0.0f;
     sys.camera_x_pid.kd = 0.0f;
-    sys.camera_x_pid.out_max = 2000.0f;
-    sys.camera_x_pid.out_min = -2000.0f;
-    sys.camera_x_pid.i_term_max = 1500.0f;
-    sys.camera_x_pid.i_term_min = -1500.0f;
+    sys.camera_x_pid.out_max = 20000.0f;
+    sys.camera_x_pid.out_min = -20000.0f;
+    sys.camera_x_pid.i_term_max = 20000.0f;
+    sys.camera_x_pid.i_term_min = -20000.0f;
 
     /* 题4/5/6运动滚球 PID：钢球位置 cm -> 摆杆角度 deg。
      * 小车运动时会叠加底盘前馈 sys.ctrl.rod_chassis_ff_deg。
@@ -477,10 +477,10 @@ void balance_init(void)
     sys.camera_x_pid_run.kp = 0.0f;
     sys.camera_x_pid_run.ki = 0.0f;
     sys.camera_x_pid_run.kd = 0.0f;
-    sys.camera_x_pid_run.out_max = 2000.0f;
-    sys.camera_x_pid_run.out_min = -2000.0f;
-    sys.camera_x_pid_run.i_term_max = 1500.0f;
-    sys.camera_x_pid_run.i_term_min = -1500.0f;
+    sys.camera_x_pid_run.out_max = 20000.0f;
+    sys.camera_x_pid_run.out_min = -20000.0f;
+    sys.camera_x_pid_run.i_term_max = 20000.0f;
+    sys.camera_x_pid_run.i_term_min = -20000.0f;
 
     pitchmotor.setSpeed = ROD_DEFAULT_SPEED_DPS;
     pitchmotor.setAcc = ROD_DEFAULT_ACC;

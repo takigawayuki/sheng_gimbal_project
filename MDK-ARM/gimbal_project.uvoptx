@@ -213,62 +213,62 @@
         <Ww>
           <count>11</count>
           <WinNumber>1</WinNumber>
-          <ItemText>\\gimbal_project\../user/app/gimbal_ctrl.c\sys.camera_x_pid.ki</ItemText>
+          <ItemText>sys,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>12</count>
           <WinNumber>1</WinNumber>
-          <ItemText>\\gimbal_project\../user/app/gimbal_ctrl.c\sys.camera_y_pid</ItemText>
+          <ItemText>pitchmotor</ItemText>
         </Ww>
         <Ww>
           <count>13</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys,0x0A</ItemText>
+          <ItemText>yawmotor</ItemText>
         </Ww>
         <Ww>
           <count>14</count>
           <WinNumber>1</WinNumber>
-          <ItemText>test_x</ItemText>
+          <ItemText>sys.ctrl.ball_target_cm</ItemText>
         </Ww>
         <Ww>
           <count>15</count>
           <WinNumber>1</WinNumber>
-          <ItemText>pitchmotor</ItemText>
+          <ItemText>sys.camera_x_pid.kp</ItemText>
         </Ww>
         <Ww>
           <count>16</count>
           <WinNumber>1</WinNumber>
-          <ItemText>yawmotor</ItemText>
+          <ItemText>sys.camera_x_pid.ki</ItemText>
         </Ww>
         <Ww>
           <count>17</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys.ctrl.ball_target_cm</ItemText>
+          <ItemText>sys.camera_x_pid.kd</ItemText>
         </Ww>
         <Ww>
           <count>18</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys.camera_x_pid.kp</ItemText>
+          <ItemText>rod_pid_test_run_cnt,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>19</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys.camera_x_pid.ki</ItemText>
+          <ItemText>sys.value.ball_pos_cm</ItemText>
         </Ww>
         <Ww>
           <count>20</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys.camera_x_pid.kd</ItemText>
+          <ItemText>dbg_vision_position_cm</ItemText>
         </Ww>
         <Ww>
           <count>21</count>
           <WinNumber>1</WinNumber>
-          <ItemText>rod_pid_test_run_cnt,0x0A</ItemText>
+          <ItemText>dbg_vision_sequence</ItemText>
         </Ww>
         <Ww>
           <count>22</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sys.value.ball_pos_cm</ItemText>
+          <ItemText>dbg_vision_velocity_cm_s</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>

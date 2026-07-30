@@ -318,6 +318,7 @@ extern car_speak_rx_t car_speak_rx;
 uint8_t target_stable(void);
 // void gimbal_sm(void);
 void gimbal_task_state(void);
+extern volatile uint8_t balance_state_machine_enable; // Keil 调试用：置 1 后才允许题3/4/5/6状态机运行
 void balance_task_start(gimbal_state state);
 
 /*** key.c ***/
