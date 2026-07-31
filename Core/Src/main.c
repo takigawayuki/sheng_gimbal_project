@@ -251,31 +251,51 @@ void SystemClock_Config(void)
 //   }
 // }
 
-// static const char *run_to_str(uint8_t in_running)
-// {
-//   return in_running ? "ON " : "OFF";
-// }
+static const char *menu_item_to_str(menu_item_t item)
+{
+  switch (item)
+  {
+  case MENU_ITEM_STANDBY:
+    return "STBY";
+  case MENU_ITEM_TASK3_STATIC_PM5:
+    return "T3";
+  case MENU_ITEM_TASK4_AB_CENTER:
+    return "T4";
+  case MENU_ITEM_TASK5_LAP_CENTER:
+    return "T5";
+  case MENU_ITEM_TASK6_LAP_SETPOINT:
+    return "T6";
+  default:
+    return "UNK";
+  }
+}
 
-// static const char *gimbal_state_to_str(uint8_t state)
-// {
-//   switch (state)
-//   {
-//   case 0:
-//     return "IDLE  ";
-//   case 1:
-//     return "S_LEFT";
-//   case 2:
-//     return "S_RGHT";
-//   case 3:
-//     return "S_TRK ";
-//   case 4:
-//     return "D_TRK ";
-//   case 5:
-//     return "D_RUN ";
-//   default:
-//     return "UNK   ";
-//   }
-// }
+static const char *run_to_str(void)
+{
+  if (gimbal_sm_obj.finished)
+    return "DONE";
+
+  return menu.in_running ? "ON" : "OFF";
+}
+
+static const char *gimbal_state_to_str(gimbal_state state)
+{
+  switch (state)
+  {
+  case GIMBAL_IDLE:
+    return "IDLE";
+  case BALANCE_TASK3_STATIC_PLUS_TO_MINUS:
+    return "T3";
+  case BALANCE_TASK4_CAR_TO_B_CENTER:
+    return "T4";
+  case BALANCE_TASK5_CAR_LAP_CENTER:
+    return "T5";
+  case BALANCE_TASK6_CAR_LAP_SETPOINT:
+    return "T6";
+  default:
+    return "UNK";
+  }
+}
 
 void OLED_Show(sys_t *sys)
 {
@@ -312,14 +332,33 @@ void OLED_Show(sys_t *sys)
   //   //    OLED_ShowString(6, 0, (uint8_t *)display_buf, 16);
   // }
 
-  sprintf(display_buf, "Item:%d        ", menu.cur_item);
+  sprintf(display_buf, "Item:%-4s      ", menu_item_to_str(menu.cur_item));
   OLED_ShowString(0, 0, (uint8_t *)display_buf, 16);
 
-  sprintf(display_buf, "Run :%s       ", menu.in_running ? "ON" : "OFF");
+  sprintf(display_buf, "Run :%-4s      ", run_to_str());
   OLED_ShowString(0, 2, (uint8_t *)display_buf, 16);
 
-  sprintf(display_buf, "GSM :%d        ", gimbal_sm_obj.state);
+  if (gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS)
+  {
+    sprintf(display_buf, "GSM :T3   P%d   ", gimbal_sm_obj.task3_phase);
+  }
+  else if ((gimbal_sm_obj.state == BALANCE_TASK4_CAR_TO_B_CENTER) ||
+           (gimbal_sm_obj.state == BALANCE_TASK5_CAR_LAP_CENTER))
+  {
+    sprintf(display_buf, "GSM :%-4s O    ", gimbal_state_to_str(gimbal_sm_obj.state));
+  }
+  else if (gimbal_sm_obj.state == BALANCE_TASK6_CAR_LAP_SETPOINT)
+  {
+    sprintf(display_buf, "GSM :T6   SET  ");
+  }
+  else
+  {
+    sprintf(display_buf, "GSM :%-4s     ", gimbal_state_to_str(gimbal_sm_obj.state));
+  }
   OLED_ShowString(0, 4, (uint8_t *)display_buf, 16);
+
+  sprintf(display_buf, "Time:%5lums  ", gimbal_sm_obj.elapsed_ms);
+  OLED_ShowString(0, 6, (uint8_t *)display_buf, 16);
 
   // sprintf(display_buf, "Item:%-11s", menu_item_to_str(menu.cur_item));
   // OLED_ShowString(0, 0, (uint8_t *)display_buf, 16);
