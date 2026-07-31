@@ -322,31 +322,40 @@ void ball_data_update(float ball_pos_cm);
 void gimbal_init(void);
 void balance_init(void);
 
-void gimbal_pid_base_update_now(void);
-
-void camera_y_pid_ctrl(sys_t *sys, float ref_value);
-void camera_x_pid_ctrl(sys_t *sys, float ref_value);
-
-void camera_y_pid_run_ctrl(sys_t *sys, float ref_value);
-void camera_x_pid_run_ctrl(sys_t *sys, float ref_value);
 void ball_balance_static_ctrl(sys_t *sys, float target_cm);
 void ball_balance_running_ctrl(sys_t *sys, float target_cm);
 void ball_balance_set_chassis_ff(float ff_deg);
 extern volatile uint8_t rod_cmd_limit_test_enable; // Keil 调试用：置 1 后进入状态反馈限幅调试
 extern volatile uint32_t rod_pid_test_run_cnt;  // Keil 调试用：状态反馈限幅调试分支运行计数
 /* 题3 Keil Watch 集中调试变量：定义在 gimbal_ctrl.c，Watch 里搜 dbg_task3_ */
-extern volatile float dbg_task3_turn_margin_cm;
+extern volatile float dbg_task3_plus_reached_cm;
+extern volatile float dbg_task3_plus_ctrl_target_cm;
 extern volatile float dbg_task3_center_margin_cm;
 extern volatile float dbg_task3_target_reached_cm;
 extern volatile float dbg_task3_target_slew_cm_s;
 extern volatile float dbg_task3_minus_slew_cm_s;
 extern volatile float dbg_task3_minus_brake_start_cm;
 extern volatile float dbg_task3_minus_brake_slew_cm_s;
+extern volatile float dbg_task3_minus_settle_start_cm;
+extern volatile float dbg_task3_minus_settle_kd_scale;
 extern volatile float dbg_task3_overrun_margin_cm;
 extern volatile float dbg_task3_overrun_vel_cm_s;
 extern volatile float dbg_task3_overrun_pullback_cm;
 extern volatile float dbg_task3_minus_output_scale;
+extern volatile float dbg_task3_minus_approach_ff_deg;
 extern volatile float dbg_task3_minus_balance_ff_deg;
+extern volatile float dbg_task3_minus_applied_ff_deg;
+extern volatile float dbg_task3_stop_brake_start_cm;
+extern volatile float dbg_task3_stop_brake_vel_cm_s;
+extern volatile float dbg_task3_stop_brake_deg;
+extern volatile uint32_t dbg_task3_stop_brake_ms;
+extern volatile float dbg_task3_stop_catch_deg;
+extern volatile uint32_t dbg_task3_stop_catch_ms;
+extern volatile uint32_t dbg_task3_stop_catch_cnt_ms;
+extern volatile uint32_t dbg_task3_stop_brake_cooldown_ms;
+extern volatile uint32_t dbg_task3_stop_brake_cnt_ms;
+extern volatile uint32_t dbg_task3_stop_brake_cooldown_cnt_ms;
+extern volatile uint8_t dbg_task3_oneshot_brake_done;
 uint8_t balance_rod_limit_test_enabled(void);
 void balance_rod_limit_test_update(void);
 uint8_t balance_rod_cmd_limit_test_enabled(void);

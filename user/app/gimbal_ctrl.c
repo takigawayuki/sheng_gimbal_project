@@ -33,18 +33,34 @@ extern float yaw_pos;
  * 后续调题3时，Keil Watch 里直接搜 dbg_task3_。
  * 这些变量不用重编就能改，方便现场只改一个区域，不用在多个文件里找宏。
  */
-volatile float dbg_task3_turn_margin_cm = 1.0f;        // +5cm 折返点提前量，球到 5-margin 后切回 O 点
+volatile float dbg_task3_plus_reached_cm = 5.5f;       // +5cm 第一段到达判定阈值；视觉是前视预测值，所以略大于 5cm，避免真实球没到 5 就提前回 O
+volatile float dbg_task3_plus_ctrl_target_cm = 5.5f;   // +5cm 第一段给 PID 的内部目标，可略大于 5cm 防止到 5 前停住
 volatile float dbg_task3_center_margin_cm = 0.5f;      // +5cm 回 O 点时，球进 O 点附近多少 cm 后进入去 -5cm 阶段
 volatile float dbg_task3_target_reached_cm = 0.2f;     // 平滑目标回到 O 点附近的判断阈值
-volatile float dbg_task3_target_slew_cm_s = 6.0f;      // 题3前两段目标斜坡速度，单位 cm/s
+volatile float dbg_task3_target_slew_cm_s = 25.0f;      // 题3前两段目标斜坡速度，单位 cm/s
 volatile float dbg_task3_minus_slew_cm_s = 4.0f;       // 题3第三段去 -5cm 的目标斜坡速度
-volatile float dbg_task3_minus_brake_start_cm = -3.5f; // 题3第三段提前刹车起点，球到该位置后降低目标斜坡速度
-volatile float dbg_task3_minus_brake_slew_cm_s = 0.5f; // 题3第三段提前刹车后的慢速斜坡
+volatile float dbg_task3_minus_brake_start_cm = -5.5f; // 题3第三段提前刹车起点，球到该位置后降低目标斜坡速度
+volatile float dbg_task3_minus_brake_slew_cm_s = 0.0f; // 题3第三段提前刹车后的慢速斜坡
+volatile float dbg_task3_minus_settle_start_cm = -5.5f; // 题3第三段终点稳定模式起点，进这个范围后目标固定 -5cm
+volatile float dbg_task3_minus_settle_kd_scale = 2.5f;  // 题3第三段终点稳定模式速度阻尼倍率，晃得厉害就加大，动作太硬就减小
 volatile float dbg_task3_overrun_margin_cm = 0.3f;     // 超限柔性回拉触发余量，超过目标多少 cm 且继续向外滚时启用
 volatile float dbg_task3_overrun_vel_cm_s = 1.0f;      // 超限柔性回拉速度门槛，过滤小速度噪声
 volatile float dbg_task3_overrun_pullback_cm = 0.0f;   // 超限后临时目标往 O 点方向退多少 cm，不再直接拉回 O 点
 volatile float dbg_task3_minus_output_scale = 1.0f;   // 题3第三阶段去 -5cm 时的 PID 输出缩放
-volatile float dbg_task3_minus_balance_ff_deg = 0.0f;  // 题3第三阶段 -5cm 静态平衡补偿角度，单位 deg
+volatile float dbg_task3_minus_approach_ff_deg = 0.0f; // 题3第三阶段靠近 -5cm 的推进补偿，球停在 -3.5/-4 附近时调这个
+volatile float dbg_task3_minus_balance_ff_deg = 0.2f;  // 题3第三阶段进入 -5cm 终点稳定区后的静态平衡补偿角度，单位 deg
+volatile float dbg_task3_minus_applied_ff_deg = 0.0f; // Watch 观察用：实际叠加到 PID 输出里的 -5cm 补偿角度
+volatile float dbg_task3_stop_brake_start_cm = -5.5f;  // 题3第三阶段到点制动起点，允许球过 -5cm 后，到 -5.5cm 左右再抬一下
+volatile float dbg_task3_stop_brake_vel_cm_s = -2.0f;  // 题3第三阶段到点制动速度门槛，速度小于该值才触发
+volatile float dbg_task3_stop_brake_deg = 0.8f;       // 题3第三阶段到点制动脉冲角度，拉回原点太多就调小，方向不对就反号
+volatile uint32_t dbg_task3_stop_brake_ms = 50U;       // 题3第三阶段到点制动持续时间，拉回原点太多就调短，单位 ms
+volatile float dbg_task3_stop_catch_deg = 0.0f;       // 制动后反向接球脉冲角度，用来防止球被拉回原点，方向不对就反号
+volatile uint32_t dbg_task3_stop_catch_ms = 80U;       // 制动后反向接球脉冲持续时间，单位 ms
+volatile uint32_t dbg_task3_stop_catch_cnt_ms = 0U;    // Watch 观察用：当前接球脉冲剩余时间
+volatile uint32_t dbg_task3_stop_brake_cooldown_ms = 120U; // 制动触发后的冷却时间，防止连续补脉冲
+volatile uint32_t dbg_task3_stop_brake_cnt_ms = 0U;    // Watch 观察用：当前制动剩余时间
+volatile uint32_t dbg_task3_stop_brake_cooldown_cnt_ms = 0U; // Watch 观察用：当前冷却剩余时间
+volatile uint8_t dbg_task3_oneshot_brake_done = 0U; // Watch 观察用：题3第三阶段单次刹车是否已经触发完成，1 表示后续只保持
 /* 题3总时间要求不超过 5s，这里用 5000ms 做结束判定参考。 */
 #define BALL_TASK3_TOTAL_MS     5000U
 
@@ -82,8 +98,6 @@ void balance_task_start(gimbal_state state)
     gimbal_sm_obj.state = state;
     sys.ctrl.ball_target_cm = (state == BALANCE_TASK6_CAR_LAP_SETPOINT) ? sys.ctrl.ball_task6_target_cm : 0.0f;
 
-    /* 记录当前电机位置作为 PID 位置控制基准，避免启动瞬间因为旧基准导致摆杆跳变。 */
-    gimbal_pid_base_update_now();
 }
 
 /* 判断钢球是否已经稳定在当前目标点附近。
@@ -101,7 +115,7 @@ static uint8_t balance_task3_plus_turn_reached(void)
      * 注意：这里不能用 stable_ms 判断。题3平滑目标从 0cm 起步，球一开始就在 O 点附近，
      * 如果用 stable_ms 会误判为已经到达 +5cm，导致状态机直接跳到 -5cm。
      */
-    return (sys.value.ball_pos_cm >= (BALL_TASK3_PLUS_CM - dbg_task3_turn_margin_cm)) ? 1U : 0U;
+    return (sys.value.ball_pos_cm >= dbg_task3_plus_reached_cm) ? 1U : 0U;
 }
 
 static uint8_t balance_task3_center_reached(void)
@@ -183,7 +197,7 @@ static void balance_task3_static_pm5(void)
          * 这里给 PID 的不是硬目标 +5cm，而是逐步靠近 +5cm 的平滑目标。
          */
         gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
-                                                                    BALL_TASK3_PLUS_CM,
+                                                                    dbg_task3_plus_ctrl_target_cm,
                                                                     dbg_task3_target_slew_cm_s);
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
@@ -222,10 +236,21 @@ static void balance_task3_static_pm5(void)
     }
     else
     {
-        /* 第三阶段：让钢球从 O 点附近运行到 -5cm，并稳定在 -5cm 附近。 */
-        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
-                                                                    BALL_TASK3_MINUS_CM,
-                                                                    balance_task3_minus_slew_cm_s());
+        /* 第三阶段：让钢球从 O 点附近运行到 -5cm，并稳定在 -5cm 附近。
+         * 进入 -5cm 附近后切到终点稳定模式：目标直接固定 -5cm，不再继续慢斜坡，
+         * 后续由 gimbal_drv.c 里的速度阻尼倍率把球刹住，减少左右来回晃。
+         */
+        if (sys.value.ball_pos_cm <= dbg_task3_minus_settle_start_cm)
+        {
+            gimbal_sm_obj.task3_target_cmd_cm = BALL_TASK3_MINUS_CM;
+        }
+        else
+        {
+            gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
+                                                                        BALL_TASK3_MINUS_CM,
+                                                                        balance_task3_minus_slew_cm_s());
+        }
+
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
     }
