@@ -1,39 +1,11 @@
 #include "common.h"
 #include "ZhangDaTou.h"
+#include "math.h"
 
 void period_init(void);
-void pid_init(void);
-
-uint8_t gimbal_pid_base_ready = 0U;
-static float yaw_pid_base_pos = 0.0f;
-static float pitch_pid_base_pos = 0.0f;
-// float test_x = 0;
-// float kp = 0, kd = 0, ki = 0;
-// float error = 0, pre_error = 0;
-// float i = 0, i_last = 0;
-// float p_term = 0, i_term = 0, d_term = 0;
-
-static void gimbal_pid_base_update_once(void)
-{
-    if (!gimbal_pid_base_ready)
-    {
-        yaw_pid_base_pos = yawmotor.Position;
-        pitch_pid_base_pos = pitchmotor.Position;
-        gimbal_pid_base_ready = 1U;
-    }
-}
-
-void gimbal_pid_base_update_now(void)
-{
-    yaw_pid_base_pos = yawmotor.Position;
-    pitch_pid_base_pos = pitchmotor.Position;
-    gimbal_pid_base_ready = 1U;
-}
-
 void gimbal_init(void)
 {
     period_init();
-    pid_init();
     balance_init();
 }
 
@@ -63,271 +35,6 @@ void period_init(void)
     sys.period.camera_x_pid_cnt_run_val = sys.period.sys_fs * sys.period.camera_x_pid_run_ts;
 }
 
-void pid_init(void)
-{
-    // pitch
-    sys.camera_y_pid.kp = 0.040f;
-    sys.camera_y_pid.ki = 5.0f;
-    sys.camera_y_pid.kd = 0.0f;
-    sys.camera_y_pid.out_max = 200.0f;
-    sys.camera_y_pid.out_min = -200.0f;
-    sys.camera_y_pid.i_term_max = 150.0f;
-    sys.camera_y_pid.i_term_min = -150.0f;
-    sys.camera_y_pid.ts = sys.period.camera_y_pid_ts;
-    sys.camera_y_pid.i_isolate_flag = 0U;
-
-    // yaw
-    // sys.camera_x_pid.kp = -0.012f;
-    // sys.camera_x_pid.ki = 10.0f;
-    // sys.camera_x_pid.kd = 0.008f;
-    sys.camera_x_pid.kp = -0.012f;
-    sys.camera_x_pid.ki = 8.0f;
-    sys.camera_x_pid.kd = 0.008f;
-
-    sys.camera_x_pid.out_max = 200.0f;
-    sys.camera_x_pid.out_min = -200.0f;
-    sys.camera_x_pid.i_term_max = 150.0f;
-    sys.camera_x_pid.i_term_min = -150.0f;
-    sys.camera_x_pid.ts = sys.period.camera_x_pid_ts;
-    sys.camera_x_pid.i_isolate_flag = 0U;
-
-    // pitch
-    sys.camera_y_pid_run.kp = 0.040f;
-    sys.camera_y_pid_run.ki = 5.0f;
-    sys.camera_y_pid_run.kd = 0.0f;
-    sys.camera_y_pid_run.out_max = 200.0f;
-    sys.camera_y_pid_run.out_min = -200.0f;
-    sys.camera_y_pid_run.i_term_max = 150.0f;
-    sys.camera_y_pid_run.i_term_min = -150.0f;
-    sys.camera_y_pid_run.ts = sys.period.camera_y_pid_run_ts;
-    sys.camera_y_pid_run.i_isolate_flag = 0U;
-
-    // yaw
-    sys.camera_x_pid_run.kp = -0.015f;
-    sys.camera_x_pid_run.ki = 12.0f;
-    sys.camera_x_pid_run.kd = 0.050f;
-    sys.camera_x_pid_run.out_max = 2000.0f;
-    sys.camera_x_pid_run.out_min = -2000.0f;
-    sys.camera_x_pid_run.i_term_max = 1500.0f;
-    sys.camera_x_pid_run.i_term_min = -1500.0f;
-    sys.camera_x_pid_run.ts = sys.period.camera_x_pid_run_ts;
-    sys.camera_x_pid_run.i_isolate_flag = 0U;
-}
-
-#define PITCH_MAX 50.0f
-#define PITCH_MIN -30.0f
-extern float pitch_pos;
-
-void camera_y_pid_ctrl(sys_t *sys, float ref_value)
-{
-    gimbal_pid_base_update_once();
-
-    if (++sys->period.camera_y_pid_cnt >= sys->period.camera_y_pid_cnt_val)
-    {
-        sys->period.camera_y_pid_cnt = 0;
-        parallel_pid_ctrl(&sys->camera_y_pid, ref_value, sys->value.camera_y);
-    }
-
-    // 速度模式
-    // 张大头电机控制
-    // 这个变量名字要改
-    //     float motor_speed = sys->camera_y_pid.out_value;
-
-    //    // 限制俯仰角在安全范围内，防止过度旋转导致机械损伤
-    //     if ((pitchmotor.Position > PITCH_MAX && motor_speed > 0.0f) ||
-    //         (pitchmotor.Position < PITCH_MIN && motor_speed < 0.0f))
-    //     {
-    //         // ZhangDaTou_Speedctr(&pitchmotor, 0.0f, 0);
-    //         ZhangDaTou_PositionSpeedctr(&pitchmotor, 0.0f, 0.0f, 0);
-    //     }
-    //     else
-    //     {
-    //         // ZhangDaTou_Speedctr(&pitchmotor, motor_speed, 1000);
-    //         ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, motor_speed, yawmotor.setAcc);
-    //     }
-
-    //     ZhangDaTou_Control(&pitchmotor);
-
-    // 张大头电机控制
-    float pos_delta = sys->camera_y_pid.out_value; // 位置模式PID的输出是角度的修正量，单位是deg
-    float pitch_goal = pitch_pid_base_pos + pos_delta;
-
-    // 限制俯仰角在安全范围内，防止过度旋转导致机械损伤
-    if (pitch_goal > PITCH_MAX)
-        pitch_goal = PITCH_MAX;
-    else if (pitch_goal < PITCH_MIN)
-        pitch_goal = PITCH_MIN;
-
-    if ((pitchmotor.Position > PITCH_MAX && pitch_goal > pitchmotor.Position) ||
-        (pitchmotor.Position < PITCH_MIN && pitch_goal < pitchmotor.Position))
-    {
-        // ZhangDaTou_Speedctr(&pitchmotor, 0.0f, 0);
-        ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, 0.0f, 0);
-    }
-    else
-    {
-        // ZhangDaTou_Speedctr(&pitchmotor, motor_speed, pitchmotor.setAcc);
-        ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, pitch_goal, pitchmotor.setAcc);
-    }
-
-    ZhangDaTou_Control(&pitchmotor);
-}
-
-#define YAW_MAX 50.0f
-#define YAW_MIN -50.0f
-extern float yaw_pos;
-
-void camera_x_pid_ctrl(sys_t *sys, float ref_value)
-{
-    gimbal_pid_base_update_once();
-
-    if (++sys->period.camera_x_pid_cnt >= sys->period.camera_x_pid_cnt_val)
-    {
-        sys->period.camera_x_pid_cnt = 0;
-        parallel_pid_ctrl(&sys->camera_x_pid, ref_value, sys->value.camera_x);
-    }
-
-    // 速度模式
-    // 张大头电机控制
-    // float motor_speed = sys->camera_x_pid.out_value;
-
-    float pos_delta = sys->camera_x_pid.out_value;
-
-    // // 限制偏航角在安全范围内，防止过度旋转导致机械损伤
-    // if ((yawmotor.Position > YAW_MAX && motor_speed > 0.0f) ||
-    //     (yawmotor.Position < YAW_MIN && motor_speed < 0.0f))
-    // {
-    //     ZhangDaTou_Speedctr(&yawmotor, 0.0f, 0);
-    // }
-    // else
-    // {
-    //     ZhangDaTou_Speedctr(&yawmotor, motor_speed, 1000);
-    // }
-
-    // ZhangDaTou_Speedctr(&yawmotor, motor_speed, yawmotor.setAcc);
-    float yaw_goal = yaw_pid_base_pos + pos_delta;
-
-    // if (yaw_goal > YAW_MAX)
-    //     yaw_goal = YAW_MAX;
-    // else if (yaw_goal < YAW_MIN)
-    //     yaw_goal = YAW_MIN;
-
-    ZhangDaTou_PositionSpeedctr(&yawmotor, yawmotor.setSpeed, yaw_goal, yawmotor.setAcc);
-    ZhangDaTou_Control(&yawmotor);
-}
-
-void camera_y_pid_run_ctrl(sys_t *sys, float ref_value)
-{
-    gimbal_pid_base_update_once();
-
-    if (++sys->period.camera_y_pid_run_cnt >= sys->period.camera_y_pid_cnt_run_val)
-    {
-        sys->period.camera_y_pid_run_cnt = 0;
-        parallel_pid_ctrl(&sys->camera_y_pid_run, ref_value, sys->value.camera_y);
-    }
-
-    // 速度模式
-    // 张大头电机控制
-    // 这个变量名字要改
-    //     float motor_speed = sys->camera_y_pid.out_value;
-
-    //    // 限制俯仰角在安全范围内，防止过度旋转导致机械损伤
-    //     if ((pitchmotor.Position > PITCH_MAX && motor_speed > 0.0f) ||
-    //         (pitchmotor.Position < PITCH_MIN && motor_speed < 0.0f))
-    //     {
-    //         // ZhangDaTou_Speedctr(&pitchmotor, 0.0f, 0);
-    //         ZhangDaTou_PositionSpeedctr(&pitchmotor, 0.0f, 0.0f, 0);
-    //     }
-    //     else
-    //     {
-    //         // ZhangDaTou_Speedctr(&pitchmotor, motor_speed, 1000);
-    //         ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, motor_speed, yawmotor.setAcc);
-    //     }
-
-    //     ZhangDaTou_Control(&pitchmotor);
-
-    // 张大头电机控制
-    float pos_delta = sys->camera_y_pid_run.out_value; // 位置模式PID的输出是角度的修正量，单位是deg
-    float pitch_goal = pitch_pid_base_pos + pos_delta;
-
-    // 限制俯仰角在安全范围内，防止过度旋转导致机械损伤
-    if (pitch_goal > PITCH_MAX)
-        pitch_goal = PITCH_MAX;
-    else if (pitch_goal < PITCH_MIN)
-        pitch_goal = PITCH_MIN;
-
-    if ((pitchmotor.Position > PITCH_MAX && pitch_goal > pitchmotor.Position) ||
-        (pitchmotor.Position < PITCH_MIN && pitch_goal < pitchmotor.Position))
-    {
-        // ZhangDaTou_Speedctr(&pitchmotor, 0.0f, 0);
-        ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, 0.0f, 0);
-    }
-    else
-    {
-        // ZhangDaTou_Speedctr(&pitchmotor, motor_speed, pitchmotor.setAcc);
-        ZhangDaTou_PositionSpeedctr(&pitchmotor, pitchmotor.setSpeed, pitch_goal, pitchmotor.setAcc);
-    }
-
-    ZhangDaTou_Control(&pitchmotor);
-}
-
-void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
-{
-    gimbal_pid_base_update_once();
-
-    if (++sys->period.camera_x_pid_run_cnt >= sys->period.camera_x_pid_cnt_run_val)
-    {
-        sys->period.camera_x_pid_run_cnt = 0;
-        parallel_pid_ctrl(&sys->camera_x_pid_run, ref_value, sys->value.camera_x);
-    }
-    // float err, err_last;
-    // err = sys->value.camera_x - test_x;
-    // d_term = err - err_last;
-    // err_last = err;
-    // float pos_delta = d_term * kd + sys->camera_x_pid_run.out_value;
-    float pos_delta = sys->camera_x_pid_run.out_value;
-
-    // 速度模式
-    // 张大头电机控制
-    // float motor_speed = sys->camera_x_pid.out_value;
-
-    // float pos_delta = sys->camera_x_pid_run.out_value;
-
-    // // 限制偏航角在安全范围内，防止过度旋转导致机械损伤
-    // if ((yawmotor.Position > YAW_MAX && motor_speed > 0.0f) ||
-    //     (yawmotor.Position < YAW_MIN && motor_speed < 0.0f))
-    // {
-    //     ZhangDaTou_Speedctr(&yawmotor, 0.0f, 0);
-    // }
-    // else
-    // {
-    //     ZhangDaTou_Speedctr(&yawmotor, motor_speed, 1000);
-    // }
-
-    // ZhangDaTou_Speedctr(&yawmotor, motor_speed, yawmotor.setAcc);
-    static float delta = 0;
-    // static float pos_filter = 0;
-    static float pos_learn = 0;
-    delta = car_speak_rx.data_1 * 0.035f + delta * 0.965f; // 小车的滤波
-    // pos_filter = pos_delta * 0.8f + pos_filter * 0.2f;      // 摄像头的滤波
-//    pos_learn = pos_delta * 0.01f + pos_learn * 0.92f;    // 摄像头的学习率
-
-    float yaw_goal = yaw_pid_base_pos + pos_delta + delta + pos_learn;
-    // float yaw_goal = 180  + pos_delta + delta + pos_learn;
-
-    // float speed_goal = pos_delta;
-
-    // if (yaw_goal > YAW_MAX)
-    //     yaw_goal = YAW_MAX;
-    // else if (yaw_goal < YAW_MIN)
-    //     yaw_goal = YAW_MIN;
-
-    ZhangDaTou_PositionSpeedctr(&yawmotor, yawmotor.setSpeed, yaw_goal, yawmotor.setAcc);
-    // ZhangDaTou_Speedctr(&yawmotor,speed_goal,yawmotor.setAcc);
-
-    ZhangDaTou_Control(&yawmotor);
-}
-
 /* ================= H题：摆杆滚球控制 =================
  * pitchmotor 复用为摆杆电机。
  * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG 必须实测后填写。
@@ -338,9 +45,10 @@ void camera_x_pid_run_ctrl(sys_t *sys, float ref_value)
 #define ROD_CENTER_DEG          0.0f        // 摆杆物理水平位置对应的 pitchmotor 反馈角度，必须实测填写
 #define ROD_MIN_DEG            -10.0f
 #define ROD_MAX_DEG             8.0f
-#define ROD_DEFAULT_SPEED_DPS  80.0f
+#define ROD_DEFAULT_SPEED_DPS  1000.0f
 #define ROD_DEFAULT_ACC      1000U
-#define BALL_I_TERM_LIMIT_DEG 5.0f       // H题积分项默认限幅，单位 deg；积分调试先集中看 sys.camera_x_pid.i_term
+#define BALL_I_TERM_LIMIT_DEG 10000.0f       // H题积分项默认限幅，单位 deg；积分调试先集中看 sys.camera_x_pid.i_term
+#define BALL_TASK3_MINUS_TARGET_CM -5.0f // 题3最终目标 -5cm，gimbal_drv.c 内部用于到点制动触发保护
 
 /* 题3调试参数已经集中定义在 gimbal_ctrl.c 的 dbg_task3_ 区域。
  * Keil Watch 里直接搜 dbg_task3_，这里不再单独放一组宏，避免现场调试到处找。
@@ -386,32 +94,11 @@ static void ball_pid_reset(pid_para_t *pid)
     pid->out_value = 0.0f;
 }
 
-static float ball_static_target_with_overrun(float target_cm, float pos_cm, float vel_cm_s)
-{
-    /* 静止题超限柔性回拉：
-     * 当球越过目标且继续向外滚时，不再把控制目标直接切到 O 点。
-     * 直接拉 O 点会导致球从 -5cm 被猛拉回 0cm，然后又重新去 -5cm，形成大幅来回晃。
-     * 现在只把临时目标往 O 点方向退一小段，用来刹车，但仍然围绕当前题目目标工作。
-     */
-    if (target_cm > 0.0f &&
-        pos_cm > (target_cm + dbg_task3_overrun_margin_cm) &&
-        vel_cm_s > dbg_task3_overrun_vel_cm_s)
-    {
-        return target_cm - dbg_task3_overrun_pullback_cm;
-    }
-
-    if (target_cm < 0.0f &&
-        pos_cm < (target_cm - dbg_task3_overrun_margin_cm) &&
-        vel_cm_s < -dbg_task3_overrun_vel_cm_s)
-    {
-        return target_cm + dbg_task3_overrun_pullback_cm;
-    }
-
-    return target_cm;
-}
 static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float pos_cm, float vel_cm_s)
 {
+    static float vel_filter_cm_s = 0.0f;
     float vel_error_cm_s;
+    float alpha;
 
     /* 状态反馈外环：位置误差 + 速度阻尼。
      * kp：位置增益，把钢球拉向目标位置。
@@ -423,12 +110,18 @@ static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float po
     pid->fback_value = pos_cm;
     pid->error = pid->ref_value - pid->fback_value;
 
-    vel_error_cm_s = 0.0f - vel_cm_s;
+    alpha = balance_clampf(dbg_task3_vel_filter_alpha, 0.0f, 1.0f);
+    vel_filter_cm_s = vel_filter_cm_s * (1.0f - alpha) + vel_cm_s * alpha;
+    dbg_task3_vel_used_cm_s = vel_filter_cm_s;
+    vel_error_cm_s = 0.0f - vel_filter_cm_s;
 
     pid->p_term = pid->kp * pid->error;
     pid->i_term += pid->ki * pid->error * pid->ts;
     pid->i_term = balance_clampf(pid->i_term, pid->i_term_min, pid->i_term_max);
     pid->d_term = pid->kd * vel_error_cm_s;
+    pid->d_term = balance_clampf(pid->d_term,
+                                 -dbg_task3_d_term_limit_deg,
+                                  dbg_task3_d_term_limit_deg);
     pid->pre_err = pid->error;
 
     pid->out_value = pid->p_term + pid->i_term + pid->d_term;
@@ -525,9 +218,13 @@ void balance_init(void)
      * 静止时没有底盘加减速扰动，先只靠位置闭环。
      * 方向不对就反转 kp/ki/kd 符号。
      */
-    sys.camera_x_pid.kp = -0.80f;
-    sys.camera_x_pid.ki = 0.0f;
-    sys.camera_x_pid.kd = -0.001f;
+    sys.camera_x_pid.kp = 0.65f;
+    sys.camera_x_pid.ki = 0.06f;
+    sys.camera_x_pid.kd = 0.01f;
+    // sys.camera_x_pid.kp = 1.5f;
+    // sys.camera_x_pid.ki = 0.75f;
+    // sys.camera_x_pid.kd = 0.01f;
+
     sys.camera_x_pid.ts = 0.001f;
     sys.camera_x_pid.out_max = 20000.0f;
     sys.camera_x_pid.out_min = -20000.0f;
@@ -538,9 +235,9 @@ void balance_init(void)
      * 小车运动时会叠加底盘前馈 sys.ctrl.rod_chassis_ff_deg。
      * 这套参数和题3分开调，避免静止题和运动题互相影响。
      */
-    sys.camera_x_pid_run.kp = 0.0f;
-    sys.camera_x_pid_run.ki = 0.0f;
-    sys.camera_x_pid_run.kd = 0.0f;
+    sys.camera_x_pid_run.kp = 0.65f;
+    sys.camera_x_pid_run.ki = 0.06f;
+    sys.camera_x_pid_run.kd = 0.01f;
     sys.camera_x_pid_run.ts = 0.001f;
     sys.camera_x_pid_run.out_max = 20000.0f;
     sys.camera_x_pid_run.out_min = -20000.0f;
@@ -567,32 +264,92 @@ void ball_balance_stop(void)
 void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
 {
     float rod_cmd;
-    float ctrl_target_cm;
+    float vel_brake_deg;
+    float brake_vel_cm_s;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
-    ctrl_target_cm = ball_static_target_with_overrun(target_cm,
-                                                     sys_obj->value.ball_pos_cm,
-                                                     sys_obj->value.ball_vel_cm_s);
+    dbg_task3_ff_applied_deg = 0.0f;
 
+    /* 题3第一阶段开环测试：0->+5cm 直接给固定摆杆角度，不运行 PID。
+     * 用来把“送到 +5”和“PID 从 +5 到 -5 停住”两个问题拆开。
+     */
+    if ((gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS) &&
+        (gimbal_sm_obj.task3_phase == 0U) &&
+        (dbg_task3_plus_openloop_enable != 0U))
+    {
+        dbg_task3_ff_applied_deg = dbg_task3_plus_openloop_deg;
+        rod_cmd = ROD_CENTER_DEG + dbg_task3_plus_openloop_deg;
+        ball_balance_apply_cmd(sys_obj, rod_cmd);
+        return;
+    }
+
+    dbg_task3_minus_hold_active = 0U;
+    dbg_task3_minus_overrun_ff_applied_deg = 0.0f;
+
+    /* 题3主策略：位置误差 + 视觉速度阻尼 -> 摆杆目标角度。
+     * 这里只保留很薄的一层分段固定补偿，便于 Keil Watch 现场调试。
+     */
     ball_state_feedback_calc(&sys_obj->camera_x_pid,
-                             ctrl_target_cm,
+                             target_cm,
                              sys_obj->value.ball_pos_cm,
                              sys_obj->value.ball_vel_cm_s);
 
-    /* 题3第三阶段去 -5cm 时单独压小摆杆输出。
-     * 你的实测现象是 -5 侧抬杆幅度偏大、需要抬好几下，而 +5 侧比较合适，
-     * 所以这里只处理 phase=2，不影响 O->+5 和 +5->O 两段。
-     */
-    if ((gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS) &&
-        (gimbal_sm_obj.task3_phase == 2U))
+    if (gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS)
     {
-        sys_obj->camera_x_pid.out_value *= dbg_task3_minus_output_scale;
-        sys_obj->camera_x_pid.out_value += dbg_task3_minus_balance_ff_deg;
+        if (gimbal_sm_obj.task3_phase == 0U)
+        {
+            dbg_task3_ff_applied_deg = dbg_task3_plus_ff_deg;
+        }
+        else if (gimbal_sm_obj.task3_phase == 2U)
+        {
+            dbg_task3_ff_applied_deg = dbg_task3_minus_ff_deg;
+
+
+            /* 第三阶段从 +5cm 拉到 -5cm 时，额外按球速反向刹车。
+             * 这层只负责吸收大幅往返的能量，不改变位置目标。
+             */
+            if (fabsf(dbg_task3_vel_used_cm_s) <= dbg_task3_minus_vel_brake_dead_cm_s)
+            {
+                brake_vel_cm_s = 0.0f;
+            }
+            else if (dbg_task3_vel_used_cm_s > 0.0f)
+            {
+                brake_vel_cm_s = dbg_task3_vel_used_cm_s - dbg_task3_minus_vel_brake_dead_cm_s;
+            }
+            else
+            {
+                brake_vel_cm_s = dbg_task3_vel_used_cm_s + dbg_task3_minus_vel_brake_dead_cm_s;
+            }
+
+            vel_brake_deg = -dbg_task3_minus_vel_brake_kd * brake_vel_cm_s;
+            vel_brake_deg = balance_clampf(vel_brake_deg,
+                                           -dbg_task3_minus_vel_brake_limit_deg,
+                                            dbg_task3_minus_vel_brake_limit_deg);
+            dbg_task3_minus_vel_brake_deg = vel_brake_deg;
+            dbg_task3_ff_applied_deg += vel_brake_deg;
+
+            if ((sys_obj->value.ball_pos_cm <= dbg_task3_minus_overrun_start_cm) &&
+                (dbg_task3_vel_used_cm_s <= dbg_task3_minus_overrun_vel_cm_s))
+            {
+                dbg_task3_minus_overrun_ff_applied_deg = dbg_task3_minus_overrun_ff_deg;
+                dbg_task3_ff_applied_deg += dbg_task3_minus_overrun_ff_applied_deg;
+            }
+            else
+            {
+                dbg_task3_minus_overrun_ff_applied_deg = 0.0f;
+            }
+        }
+        else
+        {
+            dbg_task3_minus_vel_brake_deg = 0.0f;
+        }
+
+        sys_obj->camera_x_pid.out_value += dbg_task3_ff_applied_deg;
     }
+
     rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid.out_value;
     ball_balance_apply_cmd(sys_obj, rod_cmd);
 }
-
 // 运动时的一套
 void ball_balance_set_chassis_ff(float ff_deg)
 {

@@ -12,12 +12,12 @@ static gimbal_state menu_to_balance_state(menu_item_t item)
     {
     case MENU_ITEM_TASK3_STATIC_PM5:
         return BALANCE_TASK3_STATIC_PLUS_TO_MINUS;
-    // case MENU_ITEM_TASK4_AB_CENTER:
-    //     return BALANCE_TASK4_CAR_TO_B_CENTER;
-    // case MENU_ITEM_TASK5_LAP_CENTER:
-    //     return BALANCE_TASK5_CAR_LAP_CENTER;
-    // case MENU_ITEM_TASK6_LAP_SETPOINT:
-    //     return BALANCE_TASK6_CAR_LAP_SETPOINT;
+    case MENU_ITEM_TASK4_AB_CENTER:
+        return BALANCE_TASK4_CAR_TO_B_CENTER;
+    case MENU_ITEM_TASK5_LAP_CENTER:
+        return BALANCE_TASK5_CAR_LAP_CENTER;
+    case MENU_ITEM_TASK6_LAP_SETPOINT:
+        return BALANCE_TASK6_CAR_LAP_SETPOINT;
     default:
         return GIMBAL_IDLE;
     }
