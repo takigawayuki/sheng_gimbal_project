@@ -2,6 +2,7 @@
 #include "common.h"
 // #include "mpu9250_app.h"
 #include "ZhangDaTou.h"
+#include "user_usart.h"
 
 float yaw_pos = 0.0f;
 float pitch_pos = 0.0f;
@@ -24,8 +25,8 @@ volatile uint32_t key_enter_cnt = 0;
 
 void User_TIM_Init(void)
 {
-    HAL_TIM_Base_Start_IT(&htim7); // TIM7 1ms ÖĞ¶Ï 1kHzµÄ¿ØÖÆÆµÂÊ
-    HAL_TIM_Base_Start_IT(&htim8); // TIM8 10ms ÖĞ¶Ï£¬¸ø MPU9250 Ô¤ÁôµÄ
+    HAL_TIM_Base_Start_IT(&htim7); // TIM7 1ms ï¿½Ğ¶ï¿½ 1kHzï¿½Ä¿ï¿½ï¿½ï¿½Æµï¿½ï¿½
+    HAL_TIM_Base_Start_IT(&htim8); // TIM8 10ms ï¿½Ğ¶Ï£ï¿½ï¿½ï¿½ MPU9250 Ô¤ï¿½ï¿½ï¿½ï¿½
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -35,11 +36,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         if (target_lost_cnt < 500)
             target_lost_cnt++;
         // if (target_lost_cnt >= 100)
-        //     target_valid = 0; // 100ms Ã»ĞÂÊı¾İ ¡ú ÅĞ¶ªÊ§
+        //     target_valid = 0; // 100ms Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ğ¶ï¿½Ê§
 
         // gimbal_sm();
 
-        // gimbal_task_state(); // Ã¿ 1ms Ö´ĞĞÒ»´Î
+        // gimbal_task_state(); // Ã¿ 1ms Ö´ï¿½ï¿½Ò»ï¿½ï¿½
 
         // if (key_scan() == KEY_ON)
         // {
@@ -68,7 +69,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         //     }
         // }
 
-        // ½ÓÊÕÁ½¸öÖáµç»úµÄ½Ç¶ÈÎ»ÖÃ
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä½Ç¶ï¿½Î»ï¿½ï¿½
         yaw_pos   = ZhangDaTou_getPositionDate(&yawmotor);
         pitch_pos = ZhangDaTou_getPositionDate(&pitchmotor);
 
@@ -104,7 +105,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         menu_update(ev_menu, ev_enter);
 
-        gimbal_task_state(); // Ã¿ 1ms Ö´ĞĞÒ»´Î
+        /* æ¯ 1ms è½®è¯¢ USART6 Circular DMAï¼Œæœ‰æ–°è§†è§‰å¸§å°±è§£æï¼Œæ²¡æœ‰åˆ™å¿«é€Ÿè·³è¿‡ */
+        Vision_UART_Poll();
+
+        gimbal_task_state(); // æ¯ 1ms æ‰§è¡Œä¸€æ¬¡
 
 
     }

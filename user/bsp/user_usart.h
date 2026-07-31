@@ -9,5 +9,7 @@ extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart6;
 
 void ZDT_UART_RxStart(void);
+void Vision_UART_Poll(void);
+void Vision_UART_Start(void);
 
 #endif

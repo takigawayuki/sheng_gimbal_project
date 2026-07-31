@@ -41,7 +41,7 @@ volatile float dbg_task3_center_vel_limit_cm_s = 2.5f; // +5cm 回 O 点后，速度低
 volatile float dbg_task3_target_slew_cm_s = 25.0f;     // 题3目标斜坡速度，单位 cm/s，三段共用
 volatile float dbg_task3_plus_ff_deg = 2.0f;           // 题3第一阶段 0->+5cm 推进补偿角度，方向错就反号
 volatile uint8_t dbg_task3_plus_openloop_enable = 1U; // 1 第一阶段 0->+5cm 不跑 PID，直接下发固定摆杆角度
-volatile float dbg_task3_plus_openloop_deg = 4.0f;   // 第一阶段固定摆杆角度，单位 deg，最终命令 = ROD_CENTER_DEG + 这个值
+volatile float dbg_task3_plus_openloop_deg = 6.0f;   // 第一阶段固定摆杆角度，单位 deg，最终命令 = ROD_CENTER_DEG + 这个值
 volatile float dbg_task3_plus_openloop_switch_cm = 4.5f; // 开环 0->+5cm 提前切 PID 的位置，太晚就调小，太早就调大
 volatile float dbg_task3_minus_ff_deg = 0.0f;          // 题3第三阶段 0->-5cm 推进/保持补偿角度，方向错就反号
 volatile float dbg_task3_minus_overrun_start_cm = -5.3f; // 球冲过 -5 到该位置后触发快速抬杆补偿，越小越晚

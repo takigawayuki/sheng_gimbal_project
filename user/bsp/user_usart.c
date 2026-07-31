@@ -13,11 +13,13 @@ extern void camera_data_update(float dx, float dy);
 #define VISION_STATUS_LOST         0x00U
 #define VISION_STATUS_DETECTED     0x20U
 #define VISION_STATUS_PREDICTED    0x21U
-#define VISION_STREAM_BUF_SIZE     64U
+#define VISION_STREAM_BUF_SIZE     128U
+#define VISION_DMA_BUF_SIZE        256U   /* Circular DMA ring buffer, large enough to avoid wraparound between 1ms polls */
 
 static uint8_t zdt_uart1_rx_buf[ZDT_UART_RX_BUF_SIZE];
 static uint8_t zdt_uart3_rx_buf[ZDT_UART_RX_BUF_SIZE];
-static uint8_t vision_uart6_rx_buf[ZDT_UART_RX_BUF_SIZE];
+static uint8_t vision_uart6_rx_buf[VISION_DMA_BUF_SIZE];
+static uint32_t vision_dma_last_ndtr = VISION_DMA_BUF_SIZE; /* Track DMA write pointer for manual polling */
 static uint8_t vision_stream_buf[VISION_STREAM_BUF_SIZE];
 static uint16_t vision_stream_len = 0U;
 
@@ -37,7 +39,7 @@ volatile float dbg_vision_error_cm = 0.0f;
 volatile float dbg_vision_position_cm = 0.0f;
 volatile float dbg_vision_velocity_cm_s = 0.0f;
 
-// ¿ªÆôDMA¿ÕÏĞÖĞ¶Ï½ÓÊÕ
+// ï¿½ï¿½ï¿½ï¿½DMAï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶Ï½ï¿½ï¿½ï¿½
 static void ZDT_UART_StartReceive(UART_HandleTypeDef *huart, uint8_t *rx_buf)
 {
 	if (HAL_UARTEx_ReceiveToIdle_DMA(huart, rx_buf, ZDT_UART_RX_BUF_SIZE) == HAL_OK) {
@@ -75,11 +77,11 @@ static void ZDT_UART_RecoverReceive(UART_HandleTypeDef *huart)
 	} else if (huart->Instance == USART6)
 	{
 		dbg_uart6_error_cnt++;
-		ZDT_UART_StartReceive(&huart6, vision_uart6_rx_buf);
+		Vision_UART_Start();  /* Restart circular DMA */
 	}
 }
 
-// ÅĞ¶Ïµç»ú´®¿Ú
+// ï¿½Ğ¶Ïµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static void ZDT_UART_ParseMotorFrame(UART_HandleTypeDef *huart, uint8_t *data)
 {
 	if (pitchmotor.huart == huart) {
@@ -174,20 +176,20 @@ static void Vision_HandleFrame(const uint8_t *frame)
 	dbg_vision_frame_ok_cnt++;
 
 	if ((status & VISION_STATUS_DETECTED) != 0U) {
-		/* HÌâ±Õ»·Ê¹ÓÃ¸ÖÇòÊµ²âÎ»ÖÃ position_cm¡£
-		 * error_cm ÊÇÉÏÎ»»ú°´ target-position Ëã³öµÄÎó²î£¬ÕâÀïÖ»±£´æµ½µ÷ÊÔ±äÁ¿¡£
+		/* Hï¿½ï¿½Õ»ï¿½Ê¹ï¿½Ã¸ï¿½ï¿½ï¿½Êµï¿½ï¿½Î»ï¿½ï¿½ position_cmï¿½ï¿½
+		 * error_cm ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ target-position ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½î£¬ï¿½ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ï¿½æµ½ï¿½ï¿½ï¿½Ô±ï¿½ï¿½ï¿½ï¿½ï¿½
 		 */
 		camera_data_update(position_cm, 0.0f);
 		sys.value.ball_vel_cm_s = velocity_cm_s;
 	} else {
-		/* LOST Ê±²»ÄÜ°Ñ 0 µ±³É¸ÖÇòÔÚÖĞĞÄ£¬Ö»¼ÇÂ¼¶ªÊ§×´Ì¬²¢ÇåËÙ¶È¡£ */
+		/* LOST Ê±ï¿½ï¿½ï¿½Ü°ï¿½ 0 ï¿½ï¿½ï¿½É¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½Ö»ï¿½ï¿½Â¼ï¿½ï¿½Ê§×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½Ù¶È¡ï¿½ */
 		dbg_vision_lost_cnt++;
 		sys.value.ball_vel_cm_s = 0.0f;
 		target_lost_cnt++;
 	}
 }
 
-// ½âÎö USART6 ÊÓ¾õ 18 ×Ö½ÚÖ¡£ºA5 + status + 3¸öfloat + sequence + CRC16
+// ï¿½ï¿½ï¿½ï¿½ USART6 ï¿½Ó¾ï¿½ 18 ï¿½Ö½ï¿½Ö¡ï¿½ï¿½A5 + status + 3ï¿½ï¿½float + sequence + CRC16
 static void Vision_UART_ParseData(uint8_t *data, uint16_t size)
 {
 	uint16_t copy_size;
@@ -254,16 +256,61 @@ static void Vision_UART_ParseData(uint8_t *data, uint16_t size)
 	}
 }
 
-// Æô¶¯½ÓÊÕ
+/* â”€â”€ USART6 è§†è§‰ Circular DMA ä¸“ç”¨å‡½æ•° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * USART6 ä½¿ç”¨ HAL_UART_Receive_DMA (Circular) + æ‰‹åŠ¨ NDTR è½®è¯¢ï¼Œ
+ * ä¸ä¾èµ– HAL çš„ IDLE ä¸­æ–­ã€‚TIM7 ISR æ¯ 1ms è°ƒç”¨ Vision_UART_Poll()ã€‚
+ */
+void Vision_UART_Start(void)
+{
+    vision_dma_last_ndtr = VISION_DMA_BUF_SIZE;
+    vision_stream_len = 0U;
+    if (HAL_UART_Receive_DMA(&huart6, vision_uart6_rx_buf, VISION_DMA_BUF_SIZE) == HAL_OK) {
+        __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_HT);
+        /* TC interrupt also not needed; we poll NDTR instead */
+        __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_TC);
+    }
+}
+
+void Vision_UART_Poll(void)
+{
+    uint32_t cur_ndtr;
+    uint32_t new_bytes;
+    uint32_t seg_start;   /* for wraparound case */
+
+    cur_ndtr = __HAL_DMA_GET_COUNTER(huart6.hdmarx);
+
+    if (cur_ndtr == vision_dma_last_ndtr) {
+        return;  /* No new data */
+    }
+
+    if (cur_ndtr < vision_dma_last_ndtr) {
+        /* â”€â”€ æ­£å¸¸æƒ…å†µï¼šDMA æœªå›ç»•ï¼Œæ•°æ®è¿ç»­ â”€â”€ */
+        new_bytes = vision_dma_last_ndtr - cur_ndtr;
+        /* æ–°æ•°æ®åœ¨ buf[(BUF_SIZE - last_ndtr) ... (BUF_SIZE - cur_ndtr - 1)] */
+        Vision_UART_ParseData(&vision_uart6_rx_buf[VISION_DMA_BUF_SIZE - vision_dma_last_ndtr],
+                              (uint16_t)new_bytes);
+    } else {
+        /* â”€â”€ DMA å›ç»•ï¼šæ–°æ•°æ®åˆ†ä¸¤æ®µ â”€â”€ */
+        /* ç¬¬ä¸€æ®µï¼šbuf æœ«å°¾ (ä»ä¸Šæ¬¡ä½ç½®åˆ° buf ç»“æŸ) */
+        seg_start = VISION_DMA_BUF_SIZE - vision_dma_last_ndtr;
+        Vision_UART_ParseData(&vision_uart6_rx_buf[seg_start], (uint16_t)vision_dma_last_ndtr);
+        /* ç¬¬äºŒæ®µï¼šbuf å¼€å¤´ (ä» 0 åˆ°å½“å‰å†™å…¥ä½ç½®) */
+        Vision_UART_ParseData(&vision_uart6_rx_buf[0], (uint16_t)(VISION_DMA_BUF_SIZE - cur_ndtr));
+    }
+
+    vision_dma_last_ndtr = cur_ndtr;
+}
+
+/* ç»Ÿä¸€ä¸Šç”µåˆå§‹åŒ–æ‰€æœ‰ UART æ¥æ”¶ */
 void ZDT_UART_RxStart(void)
 {
 	ZDT_UART_StartReceive(&huart1, zdt_uart1_rx_buf);
 	CarSpeak_UART_RxStart();
 	ZDT_UART_StartReceive(&huart3, zdt_uart3_rx_buf);
-	ZDT_UART_StartReceive(&huart6, vision_uart6_rx_buf);
+	Vision_UART_Start();  /* USART6: Circular DMA, no IDLE */
 }
 
-// UART½ÓÊÕÍê³É»Øµ÷
+// UARTï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É»Øµï¿½
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart->Instance == USART1)
@@ -279,11 +326,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 		ZDT_UART_ParseFeedback(huart, zdt_uart3_rx_buf, Size);
 		ZDT_UART_StartReceive(&huart3, zdt_uart3_rx_buf);
 	}
-	else if (huart->Instance == USART6)
-	{
-		Vision_UART_ParseData(vision_uart6_rx_buf, Size);
-		ZDT_UART_StartReceive(&huart6, vision_uart6_rx_buf);
-	}
+	/* USART6 ä½¿ç”¨ Circular DMA + NDTR è½®è¯¢ï¼ˆVision_UART_Pollï¼‰ï¼Œä¸ä½¿ç”¨ IDLE å›è°ƒ */
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)

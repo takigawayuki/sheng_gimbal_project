@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F405xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Device/ST/STM32F4xx/Include;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Include;../user/hardware/42;../user/hardware/MPU9250/eMPL;../user/hardware/MPU9250;..\user\hardware\OLED;../user/bsp;../user/app</IncludePath>
+              <IncludePath>../Core/Inc;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Device/ST/STM32F4xx/Include;C:/Users/Y9000P/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3/Drivers/CMSIS/Include;../user/hardware/42;../user/hardware/MPU9250/eMPL;../user/hardware/MPU9250;../user/hardware/OLED;../user/bsp;../user/app</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>

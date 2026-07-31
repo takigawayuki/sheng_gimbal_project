@@ -218,9 +218,9 @@ void balance_init(void)
      * 静止时没有底盘加减速扰动，先只靠位置闭环。
      * 方向不对就反转 kp/ki/kd 符号。
      */
-    sys.camera_x_pid.kp = 0.65f;
-    sys.camera_x_pid.ki = 0.06f;
-    sys.camera_x_pid.kd = 0.01f;
+    sys.camera_x_pid.kp = 0.9f;
+    sys.camera_x_pid.ki = 0.5f;
+    sys.camera_x_pid.kd = 0.05f;
     // sys.camera_x_pid.kp = 1.5f;
     // sys.camera_x_pid.ki = 0.75f;
     // sys.camera_x_pid.kd = 0.01f;
