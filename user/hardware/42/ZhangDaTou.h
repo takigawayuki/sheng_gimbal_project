@@ -10,14 +10,14 @@ typedef struct
 	UART_HandleTypeDef *huart;
 	uint8_t id;
 	uint8_t mod;
-	float setSpeed;			//¶ÈÃ¿Ãë
+	float setSpeed;			//åº¦æ¯ç§’
 	float setPosition;		//deg
 	uint16_t setAcc;		//RPM/s
 	float Speed;
-	float Position;			//deg£¨½Ç¶È£©
+	float Position;			//degï¼ˆè§’åº¦ï¼‰
 	uint8_t ready;
 	uint32_t microStep;
-	uint32_t reduction_ratio;//¼õËÙ±È
+	uint32_t reduction_ratio;//å‡é€Ÿæ¯”
 }ZDTMotor_Typedef;
 
 
@@ -25,19 +25,19 @@ extern ZDTMotor_Typedef pitchmotor;
 extern ZDTMotor_Typedef yawmotor;
 
 
-//µç»úÈÎÎñº¯Êı
+//ç”µæœºä»»åŠ¡å‡½æ•°
 void ZhangDaTou_Task(void);
-//µç»ú´®¿ÚÊı¾İ½âÎö
+//ç”µæœºä¸²å£æ•°æ®è§£æ
 void ZhangDaTou_DataParm(uint8_t* Data,ZDTMotor_Typedef* object);
-//ËÙ¶ÈÄ£Ê½¿ØÖÆ
+//é€Ÿåº¦æ¨¡å¼æ§åˆ¶
 void ZhangDaTou_Speedctr(ZDTMotor_Typedef* object,float SpeedVal,uint16_t AccVal);
-//Î»ÖÃËÙ¶È¿ØÖÆ
+//ä½ç½®é€Ÿåº¦æ§åˆ¶
 void ZhangDaTou_PositionSpeedctr(ZDTMotor_Typedef* object,float SpeedVal,float PositionVal,uint16_t AccVal);
-//»ñÈ¡ËÙ¶È
+//è·å–é€Ÿåº¦
 float ZhangDaTou_getSpeedDate(ZDTMotor_Typedef* object);
-//»ñÈ¡Î»ÖÃ
+//è·å–ä½ç½®
 float ZhangDaTou_getPositionDate(ZDTMotor_Typedef* object);
-//ÉèÖÃ±äÁ¿Ëù´ú±íµÄµç»úid,
+//è®¾ç½®å˜é‡æ‰€ä»£è¡¨çš„ç”µæœºid,
 void ZhangDaTou_init(ZDTMotor_Typedef* object,uint8_t id);
 void ZhangDaTou_SetUart(ZDTMotor_Typedef* object, UART_HandleTypeDef *huart);
 void ZhangDaTou_SetAcc(ZDTMotor_Typedef* object,uint16_t AccVal);

@@ -2,32 +2,32 @@
 #define __MPUIIC_H
 #include "main.h"
 
-//ÕýµãÔ­×ÓMPU9250Í¨Ñ¶ÏßÇý¶¯
-//ÓÉÕýµãÔ­×ÓMPU6050Çý¶¯ÐÞ¸Ä
+//æ­£ç‚¹åŽŸå­MPU9250é€šè®¯çº¿é©±åŠ¨
+//ç”±æ­£ç‚¹åŽŸå­MPU6050é©±åŠ¨ä¿®æ”¹
 
 
 
-//IO·½ÏòÉèÖÃ
+//IOæ–¹å‘è®¾ç½®
 #define MPU_SDA_IN()  {GPIOC->MODER = (GPIOC->MODER & ~(3 << (2*5))) | (0 << (2*5));}
 #define MPU_SDA_OUT() {GPIOC->MODER = (GPIOC->MODER & ~(3 << (2*5))) | (1 << (2*5));}
 
-////IO²Ù×÷º¯Êý	 
+////IOæ“ä½œå‡½æ•°	 
 #define MPU_IIC_SCL_SET    HAL_GPIO_WritePin(MPU9250_SCL_GPIO_Port,MPU9250_SCL_Pin,GPIO_PIN_SET) 		//SCL
 #define MPU_IIC_SCL_RESET    HAL_GPIO_WritePin(MPU9250_SCL_GPIO_Port,MPU9250_SCL_Pin,GPIO_PIN_RESET)
 #define MPU_IIC_SDA_SET   HAL_GPIO_WritePin(MPU9250_SDA_GPIO_Port,MPU9250_SDA_Pin,GPIO_PIN_SET) 		//SDA	 
 #define MPU_IIC_SDA_RESET    HAL_GPIO_WritePin(MPU9250_SDA_GPIO_Port,MPU9250_SDA_Pin,GPIO_PIN_RESET) 		//SDA
-#define MPU_READ_SDA   HAL_GPIO_ReadPin(MPU9250_SDA_GPIO_Port,MPU9250_SDA_Pin) 		//ÊäÈëSDA
+#define MPU_READ_SDA   HAL_GPIO_ReadPin(MPU9250_SDA_GPIO_Port,MPU9250_SDA_Pin) 		//è¾“å…¥SDA
 
-//IICËùÓÐ²Ù×÷º¯Êý
-void MPU_IIC_Delay(void);				//MPU IICÑÓÊ±º¯Êý	
-void MPU_IIC_Init(void);                //³õÊ¼»¯IICµÄIO¿Ú				 
-void MPU_IIC_Start(void);				//·¢ËÍIIC¿ªÊ¼ÐÅºÅ
-void MPU_IIC_Stop(void);	  			//·¢ËÍIICÍ£Ö¹ÐÅºÅ
-void MPU_IIC_Send_Byte(uint8_t txd);			//IIC·¢ËÍÒ»¸ö×Ö½Ú
-uint8_t MPU_IIC_Read_Byte(unsigned char ack);//IIC¶ÁÈ¡Ò»¸ö×Ö½Ú
-uint8_t MPU_IIC_Wait_Ack(void); 				//IICµÈ´ýACKÐÅºÅ
-void MPU_IIC_Ack(void);					//IIC·¢ËÍACKÐÅºÅ
-void MPU_IIC_NAck(void);				//IIC²»·¢ËÍACKÐÅºÅ
+//IICæ‰€æœ‰æ“ä½œå‡½æ•°
+void MPU_IIC_Delay(void);				//MPU IICå»¶æ—¶å‡½æ•°	
+void MPU_IIC_Init(void);                //åˆå§‹åŒ–IICçš„IOå£				 
+void MPU_IIC_Start(void);				//å‘é€IICå¼€å§‹ä¿¡å·
+void MPU_IIC_Stop(void);	  			//å‘é€IICåœæ­¢ä¿¡å·
+void MPU_IIC_Send_Byte(uint8_t txd);			//IICå‘é€ä¸€ä¸ªå­—èŠ‚
+uint8_t MPU_IIC_Read_Byte(unsigned char ack);//IICè¯»å–ä¸€ä¸ªå­—èŠ‚
+uint8_t MPU_IIC_Wait_Ack(void); 				//IICç­‰å¾…ACKä¿¡å·
+void MPU_IIC_Ack(void);					//IICå‘é€ACKä¿¡å·
+void MPU_IIC_NAck(void);				//IICä¸å‘é€ACKä¿¡å·
 
 void IMPU_IC_Write_One_Byte(uint8_t daddr,uint8_t addr,uint8_t data);
 uint8_t MPU_IIC_Read_One_Byte(uint8_t daddr,uint8_t addr);	  

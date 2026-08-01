@@ -11,69 +11,51 @@ void gimbal_init(void)
 
 void period_init(void)
 {
-    sys.period.sys_fs = 1000;                     // ÏµÍ³ÔËĞĞÆµÂÊ 1000Hz
-    sys.period.sys_ts = 1.0f / sys.period.sys_fs; // ÏµÍ³ÖÜÆÚ = 1 / ÏµÍ³ÆµÂÊ = 1ms
+    sys.period.sys_fs = 1000;                     // ç³»ç»Ÿè¿è¡Œé¢‘ç‡ 1000Hz
+    sys.period.sys_ts = 1.0f / sys.period.sys_fs; // ç³»ç»Ÿå‘¨æœŸ = 1 / ç³»ç»Ÿé¢‘ç‡ = 1ms
 
-    // ¸©Ñö½ÇpidÔËĞĞÆµÂÊ³õÊ¼»¯
-    sys.period.camera_y_pid_fs = 1000;                                                // Y Öá PIDÔËĞĞÆµÂÊ 1000Hz
-    sys.period.camera_y_pid_ts = 1.0f / sys.period.camera_y_pid_fs;                   // PIDÖÜÆÚ = 1 / PIDÆµÂÊ = 1ms
-    sys.period.camera_y_pid_cnt_val = sys.period.sys_fs * sys.period.camera_y_pid_ts; // Ã¿ 1 ´ÎÏµÍ³ÈÎÎñ ¡ú ÅÜ 1 ´Î PID
-
-    // Æ«º½½ÇpidÔËĞĞÆµÂÊ³õÊ¼»¯
-    sys.period.camera_x_pid_fs = 1000; // X Öá PIDÔËĞĞÆµÂÊ 1000Hz
-    sys.period.camera_x_pid_ts = 1.0f / sys.period.camera_x_pid_fs;
-    sys.period.camera_x_pid_cnt_val = sys.period.sys_fs * sys.period.camera_x_pid_ts;
-
-    // ¸©Ñö½ÇpidÔËĞĞÆµÂÊ³õÊ¼»¯
-    sys.period.camera_y_pid_run_fs = 1000;                                                    // Y Öá PIDÔËĞĞÆµÂÊ 1000Hz
-    sys.period.camera_y_pid_run_ts = 1.0f / sys.period.camera_y_pid_run_fs;                   // PIDÖÜÆÚ = 1 / PIDÆµÂÊ = 1ms
-    sys.period.camera_y_pid_cnt_run_val = sys.period.sys_fs * sys.period.camera_y_pid_run_ts; // Ã¿ 1 ´ÎÏµÍ³ÈÎÎñ ¡ú ÅÜ 1 ´Î PID
-
-    // Æ«º½½ÇpidÔËĞĞÆµÂÊ³õÊ¼»¯
-    sys.period.camera_x_pid_run_fs = 1000; // X Öá PIDÔËĞĞÆµÂÊ 1000Hz
-    sys.period.camera_x_pid_run_ts = 1.0f / sys.period.camera_x_pid_run_fs;
-    sys.period.camera_x_pid_cnt_run_val = sys.period.sys_fs * sys.period.camera_x_pid_run_ts;
 }
 
-/* ================= HÌâ£º°Ú¸Ë¹öÇò¿ØÖÆ =================
- * pitchmotor ¸´ÓÃÎª°Ú¸Ëµç»ú¡£
- * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG ±ØĞëÊµ²âºóÌîĞ´¡£
- * Ìâ3Ê¹ÓÃ¾²Ì¬×´Ì¬·´À¡£»Ìâ4/5/6Ê¹ÓÃÔË¶¯×´Ì¬·´À¡£¬²¢Ô¤Áôµ×ÅÌÇ°À¡²¹³¥Á¿¡£
- * ²â°Ú¸Ë»úĞµÏŞ·ùÊ±£¬°Ñ ROD_LIMIT_TEST_ENABLE ¸Ä³É 1U¡£
- * ÊÖ¶¯µ÷×´Ì¬·´À¡Ê±£¬´ò¿ª rod_cmd_limit_test_enable£¬·´À¡Î»ÖÃºÍËÙ¶ÈÓÉÊÓ¾õ¸üĞÂ¡£
+/* ================= Hé¢˜ï¼šæ‘†æ†æ»šçƒæ§åˆ¶ =================
+ * pitchmotor å¤ç”¨ä¸ºæ‘†æ†ç”µæœºã€‚
+ * ROD_CENTER_DEG / ROD_MIN_DEG / ROD_MAX_DEG å¿…é¡»å®æµ‹åå¡«å†™ã€‚
+ * é¢˜3ä½¿ç”¨é™æ€çŠ¶æ€åé¦ˆï¼›é¢˜4/5/6ä½¿ç”¨è¿åŠ¨çŠ¶æ€åé¦ˆï¼Œå¹¶é¢„ç•™åº•ç›˜å‰é¦ˆè¡¥å¿é‡ã€‚
+ * æµ‹æ‘†æ†æœºæ¢°é™å¹…æ—¶ï¼ŒæŠŠ ROD_LIMIT_TEST_ENABLE æ”¹æˆ 1Uã€‚
+ * æ‰‹åŠ¨è°ƒçŠ¶æ€åé¦ˆæ—¶ï¼Œæ‰“å¼€ rod_cmd_limit_test_enableï¼Œåé¦ˆä½ç½®å’Œé€Ÿåº¦ç”±è§†è§‰æ›´æ–°ã€‚
  */
-#define ROD_CENTER_DEG          0.0f        // °Ú¸ËÎïÀíË®Æ½Î»ÖÃ¶ÔÓ¦µÄ pitchmotor ·´À¡½Ç¶È£¬±ØĞëÊµ²âÌîĞ´
+#define ROD_CENTER_DEG          0.0f        // æ‘†æ†ç‰©ç†æ°´å¹³ä½ç½®å¯¹åº”çš„ pitchmotor åé¦ˆè§’åº¦ï¼Œå¿…é¡»å®æµ‹å¡«å†™
 #define ROD_MIN_DEG            -10.0f
 #define ROD_MAX_DEG             8.0f
 #define ROD_DEFAULT_SPEED_DPS  1000.0f
 #define ROD_DEFAULT_ACC      1000U
-#define BALL_I_TERM_LIMIT_DEG 10000.0f       // HÌâ»ı·ÖÏîÄ¬ÈÏÏŞ·ù£¬µ¥Î» deg£»»ı·Öµ÷ÊÔÏÈ¼¯ÖĞ¿´ sys.camera_x_pid.i_term
-#define BALL_TASK3_MINUS_TARGET_CM -5.0f // Ìâ3×îÖÕÄ¿±ê -5cm£¬gimbal_drv.c ÄÚ²¿ÓÃÓÚµ½µãÖÆ¶¯´¥·¢±£»¤
+#define BALL_POSITION_TARGET_SPEED_MAX 25.0f
+#define BALL_I_TERM_LIMIT_DEG 10000.0f       // ä¸²çº§æ§åˆ¶å™¨é€Ÿåº¦ç¯ç§¯åˆ†é¡¹é»˜è®¤é™å¹…ï¼Œå•ä½ deg
+#define BALL_TASK3_MINUS_TARGET_CM -5.0f // é¢˜3æœ€ç»ˆç›®æ ‡ -5cmï¼Œgimbal_drv.c å†…éƒ¨ç”¨äºåˆ°ç‚¹åˆ¶åŠ¨è§¦å‘ä¿æŠ¤
 
-/* Ìâ3µ÷ÊÔ²ÎÊıÒÑ¾­¼¯ÖĞ¶¨ÒåÔÚ gimbal_ctrl.c µÄ dbg_task3_ ÇøÓò¡£
- * Keil Watch ÀïÖ±½ÓËÑ dbg_task3_£¬ÕâÀï²»ÔÙµ¥¶À·ÅÒ»×éºê£¬±ÜÃâÏÖ³¡µ÷ÊÔµ½´¦ÕÒ¡£
+/* é¢˜3è°ƒè¯•å‚æ•°å·²ç»é›†ä¸­å®šä¹‰åœ¨ gimbal_ctrl.c çš„ dbg_task3_ åŒºåŸŸã€‚
+ * Keil Watch é‡Œç›´æ¥æœ dbg_task3_ï¼Œè¿™é‡Œä¸å†å•ç‹¬æ”¾ä¸€ç»„å®ï¼Œé¿å…ç°åœºè°ƒè¯•åˆ°å¤„æ‰¾ã€‚
  */
-/* °Ú¸ËÏŞ·ù²âÊÔ¿ª¹Ø¡£
- * 0U£ºÕı³£ÔËĞĞÌâ3/4/5/6×´Ì¬»úºÍ PID¡£
- * 1U£º½øÈë²âÊÔºó»áÊ§ÄÜ pitchmotor£¬Ö»¶ÁÈ¡·´À¡½Ç¶È£¬²»Ö´ĞĞ×´Ì¬»ú PID£¬²»¸ø°Ú¸ËÏÂ·¢Î»ÖÃÃüÁî¡£
- * ²âÊÔ·½·¨£º´ò¿ªºóÉÕÂ¼£¬ÊÖ¶¯×ª°Ú¸Ëµ½»úĞµ×îµÍ/×î¸ß°²È«Î»ÖÃ£¬¼ÇÂ¼ pitch_pos »ò sys.value.rod_angle_deg¡£
- * ¼ÇÂ¼Öµ·Ö±ğÌîÈë ROD_MIN_DEG / ROD_MAX_DEG£¬Ë®Æ½Î»ÖÃÌîÈë ROD_CENTER_DEG¡£
+/* æ‘†æ†é™å¹…æµ‹è¯•å¼€å…³ã€‚
+ * 0Uï¼šæ­£å¸¸è¿è¡Œé¢˜3/4/5/6çŠ¶æ€æœºå’Œ PIDã€‚
+ * 1Uï¼šè¿›å…¥æµ‹è¯•åä¼šå¤±èƒ½ pitchmotorï¼Œåªè¯»å–åé¦ˆè§’åº¦ï¼Œä¸æ‰§è¡ŒçŠ¶æ€æœº PIDï¼Œä¸ç»™æ‘†æ†ä¸‹å‘ä½ç½®å‘½ä»¤ã€‚
+ * æµ‹è¯•æ–¹æ³•ï¼šæ‰“å¼€åçƒ§å½•ï¼Œæ‰‹åŠ¨è½¬æ‘†æ†åˆ°æœºæ¢°æœ€ä½/æœ€é«˜å®‰å…¨ä½ç½®ï¼Œè®°å½• pitch_pos æˆ– sys.value.rod_angle_degã€‚
+ * è®°å½•å€¼åˆ†åˆ«å¡«å…¥ ROD_MIN_DEG / ROD_MAX_DEGï¼Œæ°´å¹³ä½ç½®å¡«å…¥ ROD_CENTER_DEGã€‚
  */
 #define ROD_LIMIT_TEST_ENABLE   0U
 
-/* °Ú¸Ë×´Ì¬·´À¡ÏŞ·ùµ÷ÊÔ±äÁ¿¡£
- * ÕâĞ©±äÁ¿ÊÇ¸ø Keil Watch ÊÖ¶¯¸ÄµÄ£¬²»ĞèÒªÃ¿´ÎÖØ±à¡£
- * rod_cmd_limit_test_enable = 1£º½øÈë×´Ì¬·´À¡ÏŞ·ù²âÊÔÄ£Ê½£¬×´Ì¬»ú²»ÅÜÌâ3/4/5/6¡£
- * sys.ctrl.ball_target_cm£ºÊÖ¶¯¸ø PID Ä¿±êÎ»ÖÃ£¬µ¥Î» cm¡£
- * sys.value.ball_pos_cm£ºÊÓ¾õ¸üĞÂµÄ¸ÖÇòÎ»ÖÃ·´À¡£¬µ¥Î» cm¡£
- * sys.camera_x_pid.kp/ki/kd ÔÚ Keil ÀïÖ±½Ó¸Ä£ºkp ÊÇÎ»ÖÃÔöÒæ£¬ki ÊÇĞ¡Á¿»ı·Ö²¹³¥£¬kd ÊÇËÙ¶È×èÄáÔöÒæ¡£
- * ×îÖÕÃüÁî = ROD_CENTER_DEG + ×´Ì¬·´À¡Êä³ö£¬È»ºó¾­¹ı ROD_MIN_DEG/ROD_MAX_DEG ÏŞ·ù¡£
+/* æ‘†æ†çŠ¶æ€åé¦ˆé™å¹…è°ƒè¯•å˜é‡ã€‚
+ * è¿™äº›å˜é‡æ˜¯ç»™ Keil Watch æ‰‹åŠ¨æ”¹çš„ï¼Œä¸éœ€è¦æ¯æ¬¡é‡ç¼–ã€‚
+ * rod_cmd_limit_test_enable = 1ï¼šè¿›å…¥çŠ¶æ€åé¦ˆé™å¹…æµ‹è¯•æ¨¡å¼ï¼ŒçŠ¶æ€æœºä¸è·‘é¢˜3/4/5/6ã€‚
+ * sys.ctrl.ball_target_cmï¼šæ‰‹åŠ¨ç»™ PID ç›®æ ‡ä½ç½®ï¼Œå•ä½ cmã€‚
+ * sys.value.ball_pos_cmï¼šè§†è§‰æ›´æ–°çš„é’¢çƒä½ç½®åé¦ˆï¼Œå•ä½ cmã€‚
+ * sys.ball_static_pid / sys.ball_running_pid ä¸­åˆ†åˆ«åŒ…å«ä½ç½®ç¯å’Œé€Ÿåº¦ç¯å‚æ•°ã€‚
+ * æœ€ç»ˆå‘½ä»¤ = ROD_CENTER_DEG + çŠ¶æ€åé¦ˆè¾“å‡ºï¼Œç„¶åç»è¿‡ ROD_MIN_DEG/ROD_MAX_DEG é™å¹…ã€‚
  */
-volatile uint8_t rod_cmd_limit_test_enable = 0U;
+volatile uint8_t rod_cmd_limit_test_enable = 1U;
 volatile uint32_t rod_pid_test_run_cnt = 0U;
 
-/* ÔË¶¯ÌâÇ°À¡²¹³¥½Ç¶ÈµÄ°²È«ÏŞ·ù¡£
- * ÏÈÕ¼Î»ÓÃ£¬Ä¬ÈÏÇ°À¡Îª 0deg£»ºóÃæµ×ÅÌ¸ø³ö¼ÓËÙ¶È/ËÙ¶È²¹³¥ºó£¬ÔÙ°ÑÖµĞ´Èë sys.ctrl.rod_chassis_ff_deg¡£
+/* è¿åŠ¨é¢˜å‰é¦ˆè¡¥å¿è§’åº¦çš„å®‰å…¨é™å¹…ã€‚
+ * å…ˆå ä½ç”¨ï¼Œé»˜è®¤å‰é¦ˆä¸º 0degï¼›åé¢åº•ç›˜ç»™å‡ºåŠ é€Ÿåº¦/é€Ÿåº¦è¡¥å¿åï¼Œå†æŠŠå€¼å†™å…¥ sys.ctrl.rod_chassis_ff_degã€‚
  */
 #define ROD_CHASSIS_FF_MIN_DEG -5.0f
 #define ROD_CHASSIS_FF_MAX_DEG  5.0f
@@ -94,31 +76,57 @@ static void ball_pid_reset(pid_para_t *pid)
     pid->out_value = 0.0f;
 }
 
-static float ball_state_feedback_calc(pid_para_t *pid, float target_cm, float pos_cm, float vel_cm_s)
+static void ball_cascade_reset(ball_cascade_pid_t *cascade)
 {
-    static float vel_filter_cm_s = 0.0f;
-    float vel_error_cm_s;
-    float alpha;
+    ball_pid_reset(&cascade->position);
+    ball_pid_reset(&cascade->velocity);
+    cascade->velocity_target_cm_s = 0.0f;
+}
 
-    /* ×´Ì¬·´À¡Íâ»·£ºÎ»ÖÃÎó²î + ËÙ¶È×èÄá¡£
-     * kp£ºÎ»ÖÃÔöÒæ£¬°Ñ¸ÖÇòÀ­ÏòÄ¿±êÎ»ÖÃ¡£
-     * ki£ºĞ¡Á¿»ı·Ö£¬ÓÃÀ´²¹³¥°Ú¸ËÁãµãÎó²î»ò¹Ì¶¨Ğ±ÆÂÆ«ÖÃ¡£
-     * kd£ºËÙ¶È×èÄá£¬¸ÖÇòËÙ¶ÈÔ½´ó£¬Ô½ÌáÇ°·´ÏòÉ²³µ¡£
-     * »ı·Ö±ØĞëÏŞ·ù£¬¹öÇòÏµÍ³²»ÄÜÈÃ»ı·ÖÎŞÏŞÀÛ¼Ó¡£
-     */
+static float ball_position_loop_calc(ball_cascade_pid_t *cascade,
+                                     float target_cm,
+                                     float pos_cm)
+{
+    pid_para_t *pid = &cascade->position;
+    float target_vel_cm_s;
+
     pid->ref_value = target_cm;
     pid->fback_value = pos_cm;
     pid->error = pid->ref_value - pid->fback_value;
+    pid->p_term = pid->kp * pid->error;
+    pid->i_term += pid->ki * pid->error * pid->ts;
+    pid->i_term = balance_clampf(pid->i_term, pid->i_term_min, pid->i_term_max);
+    pid->d_term = pid->kd * (pid->error - pid->pre_err) / pid->ts;
+    pid->pre_err = pid->error;
+    pid->out_value = pid->p_term + pid->i_term + pid->d_term;
 
+    target_vel_cm_s = balance_clampf(pid->out_value,
+                                     -cascade->velocity_limit_cm_s,
+                                      cascade->velocity_limit_cm_s);
+    cascade->velocity_target_cm_s = target_vel_cm_s;
+    return target_vel_cm_s;
+}
+
+static float ball_velocity_loop_calc(ball_cascade_pid_t *cascade, float vel_cm_s)
+{
+    pid_para_t *pid = &cascade->velocity;
+    static float vel_filter_cm_s = 0.0f;
+    float alpha;
+
+    /* é€Ÿåº¦å†…ç¯ï¼šç›®æ ‡é€Ÿåº¦æ¥è‡ªä½ç½®å¤–ç¯ï¼Œåé¦ˆé‡ä½¿ç”¨è§†è§‰ç»™å‡ºçš„ ball_vel_cm_sã€‚
+     * kp/ki/kd åªä½œç”¨äºé€Ÿåº¦è¯¯å·®åŠå…¶ç§¯åˆ†ã€å¾®åˆ†ã€‚
+     */
     alpha = balance_clampf(dbg_task3_vel_filter_alpha, 0.0f, 1.0f);
     vel_filter_cm_s = vel_filter_cm_s * (1.0f - alpha) + vel_cm_s * alpha;
     dbg_task3_vel_used_cm_s = vel_filter_cm_s;
-    vel_error_cm_s = 0.0f - vel_filter_cm_s;
+    pid->ref_value = cascade->velocity_target_cm_s;
+    pid->fback_value = vel_filter_cm_s;
+    pid->error = pid->ref_value - pid->fback_value;
 
     pid->p_term = pid->kp * pid->error;
     pid->i_term += pid->ki * pid->error * pid->ts;
     pid->i_term = balance_clampf(pid->i_term, pid->i_term_min, pid->i_term_max);
-    pid->d_term = pid->kd * vel_error_cm_s;
+    pid->d_term = pid->kd * (pid->error - pid->pre_err) / pid->ts;
     pid->d_term = balance_clampf(pid->d_term,
                                  -dbg_task3_d_term_limit_deg,
                                   dbg_task3_d_term_limit_deg);
@@ -148,8 +156,8 @@ void balance_rod_limit_test_update(void)
 #if ROD_LIMIT_TEST_ENABLE
     static uint8_t pitch_disable_sent = 0U;
 
-    /* ÏŞ·ù²âÊÔÄ£Ê½Ö»¶Áµç»ú·´À¡£¬²»ÏÂ·¢ÈÎºÎ°Ú¸Ë¿ØÖÆÃüÁî¡£
-     * µÚÒ»´Î½øÈë²âÊÔÄ£Ê½Ê±Ê§ÄÜ pitchmotor£¬ÕâÑù¿ÉÒÔÊÖ¶¯×ª¶¯°Ú¸Ë¡£
+    /* é™å¹…æµ‹è¯•æ¨¡å¼åªè¯»ç”µæœºåé¦ˆï¼Œä¸ä¸‹å‘ä»»ä½•æ‘†æ†æ§åˆ¶å‘½ä»¤ã€‚
+     * ç¬¬ä¸€æ¬¡è¿›å…¥æµ‹è¯•æ¨¡å¼æ—¶å¤±èƒ½ pitchmotorï¼Œè¿™æ ·å¯ä»¥æ‰‹åŠ¨è½¬åŠ¨æ‘†æ†ã€‚
      */
     if (!pitch_disable_sent)
     {
@@ -163,8 +171,8 @@ void balance_rod_limit_test_update(void)
     sys.value.rod_angle_deg = pitch_pos;
     sys.ctrl.rod_angle_cmd_deg = pitch_pos;
 
-    ball_pid_reset(&sys.camera_x_pid);
-    ball_pid_reset(&sys.camera_x_pid_run);
+    ball_cascade_reset(&sys.ball_static_pid);
+    ball_cascade_reset(&sys.ball_running_pid);
 #endif
 }
 
@@ -178,18 +186,18 @@ void balance_rod_cmd_limit_test_update(void)
     static uint8_t pitch_enable_sent = 0U;
     float rod_cmd;
 
-    /* ×´Ì¬·´À¡ÏŞ·ùµ÷ÊÔÄ£Ê½»áÕæÕıÔËĞĞ sys.camera_x_pid¡£
-     * ÔÚ Keil Watch ÀïÊÖ¶¯ĞŞ¸Ä£º
-     * 1. sys.camera_x_pid.kp£ºĞ¡ÇòÎ»ÖÃÎó²îÔöÒæ
-     * 2. sys.camera_x_pid.kd£ºĞ¡ÇòËÙ¶È×èÄáÔöÒæ£¬sys.camera_x_pid.ki ÔİÊ±²»ÓÃ
-     * 3. sys.ctrl.ball_target_cm ×÷ÎªĞ¡ÇòÄ¿±êÎ»ÖÃ£¬µ¥Î» cm
-     * 4. sys.value.ball_pos_cm / sys.value.ball_vel_cm_s ×÷ÎªÊÓ¾õ·´À¡£¬µ¥Î» cm / cm/s
-     * È»ºó¹Û²ì rod_pid_test_run_cnt¡¢sys.camera_x_pid.error/p_term/d_term/out_value ºÍ sys.ctrl.rod_angle_cmd_deg¡£
-     * ×¢Òâ£ºÕâÀï²»¸²¸Ç sys.value.ball_pos_cm£¬·½±ãÖ±½ÓÊ¹ÓÃÊÓ¾õÊµÊ±·´À¡¡£
+    /* çŠ¶æ€åé¦ˆé™å¹…è°ƒè¯•æ¨¡å¼ä¼šè¿è¡Œé™æ­¢ä¸²çº§æ§åˆ¶å™¨ã€‚
+     * åœ¨ Keil Watch é‡Œæ‰‹åŠ¨ä¿®æ”¹ï¼š
+     * 1. sys.ball_static_pid.position.kp/ki/kdï¼šä½ç½®ç¯å‚æ•°
+     * 2. sys.ball_static_pid.velocity.kp/ki/kdï¼šé€Ÿåº¦ç¯å‚æ•°
+     * 3. sys.ctrl.ball_target_cm ä½œä¸ºå°çƒç›®æ ‡ä½ç½®ï¼Œå•ä½ cm
+     * 4. sys.value.ball_pos_cm / sys.value.ball_vel_cm_s ä½œä¸ºè§†è§‰åé¦ˆï¼Œå•ä½ cm / cm/s
+     * ç„¶åè§‚å¯Ÿ positionã€velocityã€velocity_target_cm_s å’Œ sys.ctrl.rod_angle_cmd_degã€‚
+     * æ³¨æ„ï¼šè¿™é‡Œä¸è¦†ç›– sys.value.ball_pos_cmï¼Œæ–¹ä¾¿ç›´æ¥ä½¿ç”¨è§†è§‰å®æ—¶åé¦ˆã€‚
      */
     if (!pitch_enable_sent)
     {
-        /* ÕâÀïÔÚ TIM ÖĞ¶ÏÀïÖ´ĞĞ£¬²»ÄÜµ÷ÓÃ HAL_Delay()£¬·ñÔò PID ¿ÉÄÜ¸ù±¾ÅÜ²»µ½¡£ */
+        /* è¿™é‡Œåœ¨ TIM ä¸­æ–­é‡Œæ‰§è¡Œï¼Œä¸èƒ½è°ƒç”¨ HAL_Delay()ï¼Œå¦åˆ™ PID å¯èƒ½æ ¹æœ¬è·‘ä¸åˆ°ã€‚ */
         ZhangDaTou_Enable(&pitchmotor, 1);
         pitch_enable_sent = 1U;
     }
@@ -198,12 +206,13 @@ void balance_rod_cmd_limit_test_update(void)
     sys.value.ball_pos_raw_cm = sys.value.ball_pos_cm;
     sys.ctrl.rod_chassis_ff_deg = 0.0f;
 
-    ball_state_feedback_calc(&sys.camera_x_pid,
-                             sys.ctrl.ball_target_cm,
-                             sys.value.ball_pos_cm,
-                             sys.value.ball_vel_cm_s);
+    ball_position_loop_calc(&sys.ball_static_pid,
+                            sys.ctrl.ball_target_cm,
+                            sys.value.ball_pos_cm);
+    ball_velocity_loop_calc(&sys.ball_static_pid,
+                            sys.value.ball_vel_cm_s);
 
-    rod_cmd = ROD_CENTER_DEG + sys.camera_x_pid.out_value;
+    rod_cmd = ROD_CENTER_DEG + sys.ball_static_pid.velocity.out_value;
     ball_balance_apply_cmd(&sys, rod_cmd);
 }
 
@@ -214,35 +223,44 @@ void balance_init(void)
     sys.ctrl.rod_angle_cmd_deg = ROD_CENTER_DEG;
     sys.ctrl.rod_chassis_ff_deg = 0.0f;
 
-    /* Ìâ3¾²Ö¹¹öÇò PID£º¸ÖÇòÎ»ÖÃ cm -> °Ú¸Ë½Ç¶È deg¡£
-     * ¾²Ö¹Ê±Ã»ÓĞµ×ÅÌ¼Ó¼õËÙÈÅ¶¯£¬ÏÈÖ»¿¿Î»ÖÃ±Õ»·¡£
-     * ·½Ïò²»¶Ô¾Í·´×ª kp/ki/kd ·ûºÅ¡£
-     */
-    sys.camera_x_pid.kp = 0.9f;
-    sys.camera_x_pid.ki = 0.5f;
-    sys.camera_x_pid.kd = 0.05f;
-    // sys.camera_x_pid.kp = 1.5f;
-    // sys.camera_x_pid.ki = 0.75f;
-    // sys.camera_x_pid.kd = 0.01f;
+    /* æ–°çš„ä¸²çº§æ§åˆ¶å™¨å‚æ•°ï¼šä½ç½®ç¯å’Œé€Ÿåº¦ç¯åˆ†åˆ«ç‹¬ç«‹è°ƒèŠ‚ã€‚ */
+    sys.ball_static_pid.position.kp = 2.0f;
+    sys.ball_static_pid.position.ki = 0.0f;
+    sys.ball_static_pid.position.kd = 0.0f;
+    sys.ball_static_pid.position.ts = 0.001f;
+    sys.ball_static_pid.position.out_min = -BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_static_pid.position.out_max = BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_static_pid.position.i_term_min = -BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_static_pid.position.i_term_max = BALL_POSITION_TARGET_SPEED_MAX;
 
-    sys.camera_x_pid.ts = 0.001f;
-    sys.camera_x_pid.out_max = 20000.0f;
-    sys.camera_x_pid.out_min = -20000.0f;
-    sys.camera_x_pid.i_term_max = BALL_I_TERM_LIMIT_DEG;
-    sys.camera_x_pid.i_term_min = -BALL_I_TERM_LIMIT_DEG;
+    sys.ball_static_pid.velocity.kp = 0.8f;
+    sys.ball_static_pid.velocity.ki = 0.0f;
+    sys.ball_static_pid.velocity.kd = 50.0f;
+    sys.ball_static_pid.velocity.ts = 0.001f;
+    sys.ball_static_pid.velocity.out_min = -20000.0f;
+    sys.ball_static_pid.velocity.out_max = 20000.0f;
+    sys.ball_static_pid.velocity.i_term_min = -BALL_I_TERM_LIMIT_DEG;
+    sys.ball_static_pid.velocity.i_term_max = BALL_I_TERM_LIMIT_DEG;
+    sys.ball_static_pid.velocity_limit_cm_s = BALL_POSITION_TARGET_SPEED_MAX;
 
-    /* Ìâ4/5/6ÔË¶¯¹öÇò PID£º¸ÖÇòÎ»ÖÃ cm -> °Ú¸Ë½Ç¶È deg¡£
-     * Ğ¡³µÔË¶¯Ê±»áµş¼Óµ×ÅÌÇ°À¡ sys.ctrl.rod_chassis_ff_deg¡£
-     * ÕâÌ×²ÎÊıºÍÌâ3·Ö¿ªµ÷£¬±ÜÃâ¾²Ö¹ÌâºÍÔË¶¯Ìâ»¥ÏàÓ°Ïì¡£
-     */
-    sys.camera_x_pid_run.kp = 0.65f;
-    sys.camera_x_pid_run.ki = 0.06f;
-    sys.camera_x_pid_run.kd = 0.01f;
-    sys.camera_x_pid_run.ts = 0.001f;
-    sys.camera_x_pid_run.out_max = 20000.0f;
-    sys.camera_x_pid_run.out_min = -20000.0f;
-    sys.camera_x_pid_run.i_term_max = BALL_I_TERM_LIMIT_DEG;
-    sys.camera_x_pid_run.i_term_min = -BALL_I_TERM_LIMIT_DEG;
+    sys.ball_running_pid.position.kp = 2.0f;
+    sys.ball_running_pid.position.ki = 0.0f;
+    sys.ball_running_pid.position.kd = 0.0f;
+    sys.ball_running_pid.position.ts = 0.001f;
+    sys.ball_running_pid.position.out_min = -BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_running_pid.position.out_max = BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_running_pid.position.i_term_min = -BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_running_pid.position.i_term_max = BALL_POSITION_TARGET_SPEED_MAX;
+
+    sys.ball_running_pid.velocity.kp = 0.8f;
+    sys.ball_running_pid.velocity.ki = 0.0f;
+    sys.ball_running_pid.velocity.kd = 50.0f;
+    sys.ball_running_pid.velocity.ts = 0.001f;
+    sys.ball_running_pid.velocity.out_min = -20000.0f;
+    sys.ball_running_pid.velocity.out_max = 20000.0f;
+    sys.ball_running_pid.velocity.i_term_min = -BALL_I_TERM_LIMIT_DEG;
+    sys.ball_running_pid.velocity.i_term_max = BALL_I_TERM_LIMIT_DEG;
+    sys.ball_running_pid.velocity_limit_cm_s = BALL_POSITION_TARGET_SPEED_MAX;
 
     pitchmotor.setSpeed = ROD_DEFAULT_SPEED_DPS;
     pitchmotor.setAcc = ROD_DEFAULT_ACC;
@@ -251,16 +269,16 @@ void balance_init(void)
 
 void ball_balance_stop(void)
 {
-    ball_pid_reset(&sys.camera_x_pid);
-    ball_pid_reset(&sys.camera_x_pid_run);
+    ball_cascade_reset(&sys.ball_static_pid);
+    ball_cascade_reset(&sys.ball_running_pid);
     sys.ctrl.rod_angle_cmd_deg = ROD_CENTER_DEG;
     sys.ctrl.rod_chassis_ff_deg = 0.0f;
 
-    /* »ØÖĞÒ²×ß ball_balance_apply_cmd()£¬±£Ö¤ ROD_CENTER_DEG Ğ´´í»òÎ´Êµ²âÊ±²»»áÔ½¹ı pitch ÖáÏŞ·ù¡£ */
+    /* å›ä¸­ä¹Ÿèµ° ball_balance_apply_cmd()ï¼Œä¿è¯ ROD_CENTER_DEG å†™é”™æˆ–æœªå®æµ‹æ—¶ä¸ä¼šè¶Šè¿‡ pitch è½´é™å¹…ã€‚ */
     ball_balance_apply_cmd(&sys, ROD_CENTER_DEG);
 }
 
-// ¾²Ö¹Ê±µÄÒ»Ì×
+// é™æ­¢æ—¶çš„ä¸€å¥—
 void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
 {
     float rod_cmd;
@@ -270,8 +288,8 @@ void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
     sys_obj->ctrl.ball_target_cm = target_cm;
     dbg_task3_ff_applied_deg = 0.0f;
 
-    /* Ìâ3µÚÒ»½×¶Î¿ª»·²âÊÔ£º0->+5cm Ö±½Ó¸ø¹Ì¶¨°Ú¸Ë½Ç¶È£¬²»ÔËĞĞ PID¡£
-     * ÓÃÀ´°Ñ¡°ËÍµ½ +5¡±ºÍ¡°PID ´Ó +5 µ½ -5 Í£×¡¡±Á½¸öÎÊÌâ²ğ¿ª¡£
+    /* é¢˜3ç¬¬ä¸€é˜¶æ®µå¼€ç¯æµ‹è¯•ï¼š0->+5cm ç›´æ¥ç»™å›ºå®šæ‘†æ†è§’åº¦ï¼Œä¸è¿è¡Œ PIDã€‚
+     * ç”¨æ¥æŠŠâ€œé€åˆ° +5â€å’Œâ€œPID ä» +5 åˆ° -5 åœä½â€ä¸¤ä¸ªé—®é¢˜æ‹†å¼€ã€‚
      */
     if ((gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS) &&
         (gimbal_sm_obj.task3_phase == 0U) &&
@@ -286,13 +304,14 @@ void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
     dbg_task3_minus_hold_active = 0U;
     dbg_task3_minus_overrun_ff_applied_deg = 0.0f;
 
-    /* Ìâ3Ö÷²ßÂÔ£ºÎ»ÖÃÎó²î + ÊÓ¾õËÙ¶È×èÄá -> °Ú¸ËÄ¿±ê½Ç¶È¡£
-     * ÕâÀïÖ»±£ÁôºÜ±¡µÄÒ»²ã·Ö¶Î¹Ì¶¨²¹³¥£¬±ãÓÚ Keil Watch ÏÖ³¡µ÷ÊÔ¡£
+    /* é¢˜3ä¸»ç­–ç•¥ï¼šä½ç½®è¯¯å·® + è§†è§‰é€Ÿåº¦é˜»å°¼ -> æ‘†æ†ç›®æ ‡è§’åº¦ã€‚
+     * è¿™é‡Œåªä¿ç•™å¾ˆè–„çš„ä¸€å±‚åˆ†æ®µå›ºå®šè¡¥å¿ï¼Œä¾¿äº Keil Watch ç°åœºè°ƒè¯•ã€‚
      */
-    ball_state_feedback_calc(&sys_obj->camera_x_pid,
-                             target_cm,
-                             sys_obj->value.ball_pos_cm,
-                             sys_obj->value.ball_vel_cm_s);
+    ball_position_loop_calc(&sys_obj->ball_static_pid,
+                            target_cm,
+                            sys_obj->value.ball_pos_cm);
+    ball_velocity_loop_calc(&sys_obj->ball_static_pid,
+                            sys_obj->value.ball_vel_cm_s);
 
     if (gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS)
     {
@@ -305,8 +324,8 @@ void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
             dbg_task3_ff_applied_deg = dbg_task3_minus_ff_deg;
 
 
-            /* µÚÈı½×¶Î´Ó +5cm À­µ½ -5cm Ê±£¬¶îÍâ°´ÇòËÙ·´ÏòÉ²³µ¡£
-             * Õâ²ãÖ»¸ºÔğÎüÊÕ´ó·ùÍù·µµÄÄÜÁ¿£¬²»¸Ä±äÎ»ÖÃÄ¿±ê¡£
+            /* ç¬¬ä¸‰é˜¶æ®µä» +5cm æ‹‰åˆ° -5cm æ—¶ï¼Œé¢å¤–æŒ‰çƒé€Ÿåå‘åˆ¹è½¦ã€‚
+             * è¿™å±‚åªè´Ÿè´£å¸æ”¶å¤§å¹…å¾€è¿”çš„èƒ½é‡ï¼Œä¸æ”¹å˜ä½ç½®ç›®æ ‡ã€‚
              */
             if (fabsf(dbg_task3_vel_used_cm_s) <= dbg_task3_minus_vel_brake_dead_cm_s)
             {
@@ -344,51 +363,52 @@ void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
             dbg_task3_minus_vel_brake_deg = 0.0f;
         }
 
-        sys_obj->camera_x_pid.out_value += dbg_task3_ff_applied_deg;
+        sys_obj->ball_static_pid.velocity.out_value += dbg_task3_ff_applied_deg;
     }
 
-    rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid.out_value;
+    rod_cmd = ROD_CENTER_DEG + sys_obj->ball_static_pid.velocity.out_value;
     ball_balance_apply_cmd(sys_obj, rod_cmd);
 }
-// ÔË¶¯Ê±µÄÒ»Ì×
+// è¿åŠ¨æ—¶çš„ä¸€å¥—
 void ball_balance_set_chassis_ff(float ff_deg)
 {
-    /* µ×ÅÌÇ°À¡²¹³¥½Ç¶ÈÕ¼Î»½Ó¿Ú¡£
-     * ÏÖÔÚ¿ÉÒÔÒ»Ö±´« 0£»ºóÃæµ×ÅÌ¸ø³ö¼ÓËÙ¶È/ËÙ¶È²¹³¥Á¿Ê±£¬ÔÚÕâÀïĞ´Èë¼´¿É¡£
+    /* åº•ç›˜å‰é¦ˆè¡¥å¿è§’åº¦å ä½æ¥å£ã€‚
+     * ç°åœ¨å¯ä»¥ä¸€ç›´ä¼  0ï¼›åé¢åº•ç›˜ç»™å‡ºåŠ é€Ÿåº¦/é€Ÿåº¦è¡¥å¿é‡æ—¶ï¼Œåœ¨è¿™é‡Œå†™å…¥å³å¯ã€‚
      */
     sys.ctrl.rod_chassis_ff_deg = balance_clampf(ff_deg, ROD_CHASSIS_FF_MIN_DEG, ROD_CHASSIS_FF_MAX_DEG);
 }
 
-// ÔË¶¯Ê±µÄÒ»Ì×
+// è¿åŠ¨æ—¶çš„ä¸€å¥—
 void ball_balance_running_ctrl(sys_t *sys_obj, float target_cm)
 {
     float rod_cmd;
     float chassis_ff_deg;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
-    ball_state_feedback_calc(&sys_obj->camera_x_pid_run,
-                             target_cm,
-                             sys_obj->value.ball_pos_cm,
-                             sys_obj->value.ball_vel_cm_s);
+    ball_position_loop_calc(&sys_obj->ball_running_pid,
+                            target_cm,
+                            sys_obj->value.ball_pos_cm);
+    ball_velocity_loop_calc(&sys_obj->ball_running_pid,
+                            sys_obj->value.ball_vel_cm_s);
 
-    /* ÔË¶¯ÌâÇ°À¡Õ¼Î»Á¿¡£
-     * µ±Ç°Ä¬ÈÏÊÇ 0deg£¬²»Ó°Ïì±Õ»·£»ºóĞøµ×ÅÌ²¹³¥Ö»ĞèÒª¸Ä sys.ctrl.rod_chassis_ff_deg¡£
+    /* è¿åŠ¨é¢˜å‰é¦ˆå ä½é‡ã€‚
+     * å½“å‰é»˜è®¤æ˜¯ 0degï¼Œä¸å½±å“é—­ç¯ï¼›åç»­åº•ç›˜è¡¥å¿åªéœ€è¦æ”¹ sys.ctrl.rod_chassis_ff_degã€‚
      */
     chassis_ff_deg = balance_clampf(sys_obj->ctrl.rod_chassis_ff_deg, ROD_CHASSIS_FF_MIN_DEG, ROD_CHASSIS_FF_MAX_DEG);
 
-    rod_cmd = ROD_CENTER_DEG + sys_obj->camera_x_pid_run.out_value + chassis_ff_deg;
+    rod_cmd = ROD_CENTER_DEG + sys_obj->ball_running_pid.velocity.out_value + chassis_ff_deg;
     ball_balance_apply_cmd(sys_obj, rod_cmd);
 }
 
 static void ball_balance_apply_cmd(sys_t *sys_obj, float rod_cmd)
 {
-    /* pitch Öá×îÖÕ°²È«ÏŞ·ù¡£
-     * ËùÓĞÌâ3/4/5/6µÄ°Ú¸ËÄ¿±ê½Ç¶È£¬×îºó¶¼±ØĞë¾­¹ıÕâÀïÔÙÏÂ·¢¸ø pitchmotor¡£
+    /* pitch è½´æœ€ç»ˆå®‰å…¨é™å¹…ã€‚
+     * æ‰€æœ‰é¢˜3/4/5/6çš„æ‘†æ†ç›®æ ‡è§’åº¦ï¼Œæœ€åéƒ½å¿…é¡»ç»è¿‡è¿™é‡Œå†ä¸‹å‘ç»™ pitchmotorã€‚
      */
     rod_cmd = balance_clampf(rod_cmd, ROD_MIN_DEG, ROD_MAX_DEG);
 
-    sys_obj->ctrl.rod_angle_cmd_deg = rod_cmd;         // ¼ÇÂ¼×îÖÕ·¢¸ø°Ú¸Ëµç»úµÄÄ¿±ê½Ç¶È£¬µ¥Î» deg
-    sys_obj->value.rod_angle_deg = pitchmotor.Position; // ¼ÇÂ¼°Ú¸Ëµ±Ç°Êµ¼Ê½Ç¶È£¬ÕâÀï pitchmotor ¾ÍÊÇ°Ú¸Ëµç»ú
+    sys_obj->ctrl.rod_angle_cmd_deg = rod_cmd;         // è®°å½•æœ€ç»ˆå‘ç»™æ‘†æ†ç”µæœºçš„ç›®æ ‡è§’åº¦ï¼Œå•ä½ deg
+    sys_obj->value.rod_angle_deg = pitchmotor.Position; // è®°å½•æ‘†æ†å½“å‰å®é™…è§’åº¦ï¼Œè¿™é‡Œ pitchmotor å°±æ˜¯æ‘†æ†ç”µæœº
 
     ZhangDaTou_PositionSpeedctr(&pitchmotor, ROD_DEFAULT_SPEED_DPS, rod_cmd, ROD_DEFAULT_ACC);
     ZhangDaTou_Control(&pitchmotor);

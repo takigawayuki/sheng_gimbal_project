@@ -131,8 +131,8 @@ int main(void)
   // HAL_Delay(5);
 
   // H
-  ZhangDaTou_StartPosFeedback(&pitchmotor, 5);
-  HAL_Delay(50);
+  // ZhangDaTou_StartPosFeedback(&pitchmotor, 5);
+  // HAL_Delay(50);
   // ZhangDaTou_StartPosFeedback(&yawmotor, 5);
   // HAL_Delay(50);
 
@@ -166,7 +166,7 @@ int main(void)
 
     //  if (HAL_UART_Receive(&huart3, &rx_byte, 1, 10) == HAL_OK)
     //  {
-    //    HAL_UART_Transmit(&huart3, &rx_byte, 1, 0xFFFF);
+    //    HAL_UART_Transmit(&huart3, &rx_byte, 1, 0xFFFF); 
     //  }
     //  HAL_Delay(100);
 

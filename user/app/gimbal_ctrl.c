@@ -5,89 +5,89 @@ sys_t sys;
 gimbal_sm_t gimbal_sm_obj = {GIMBAL_IDLE, 0, 0, 0, 0, 0.0f};
 
 volatile uint32_t target_lost_cnt = 0;
-volatile uint8_t balance_state_machine_enable = 0U; // Ä¬ÈÏ²»×Ô¶¯ÔËĞĞÌâºÅ×´Ì¬»ú£¬Ö»½ÓÊÕÊÓ¾õ£¬²Ëµ¥È·ÈÏºóÆô¶¯Ìâ3
+volatile uint8_t balance_state_machine_enable = 0U; // é»˜è®¤ä¸è‡ªåŠ¨è¿è¡Œé¢˜å·çŠ¶æ€æœºï¼Œåªæ¥æ”¶è§†è§‰ï¼Œèœå•ç¡®è®¤åå¯åŠ¨é¢˜3
 
 extern float yaw_pos;
 
 
-/* ================= HÌâ£º°´ÌâºÅ»®·ÖµÄĞÂ×´Ì¬»ú =================
- * ËµÃ÷£º
- * 1. ±¾¹¤³ÌÖ»¸ºÔğ°Ú¸ËºÍ¸ÖÇò¿ØÖÆ£¬²»¸ºÔğĞ¡³µÑ­¼£¡£
- * 2. Ìâ1Í¼´«¡¢Ìâ2Ğ¡³µÒ»È¦¼ÆÊ±¶¼²»Æô¶¯°Ú¸Ë£¬±¾×´Ì¬»úÖ»´¦ÀíÌâ3µ½Ìâ6¡£
- * 3. ÊÓ¾õÈë¿ÚÔÚ camera_data_update()£¬µ±Ç°Ô¼¶¨ dx ±íÊ¾¸ÖÇòÏà¶Ô O µãµÄÎ»ÖÃÆ«²î£¬µ¥Î» cm¡£
- * 4. pitchmotor ÔİÊ±×÷Îª°Ú¸Ëµç»úÊ¹ÓÃ£¬¿ØÖÆ·½Ê½ÊÇÕÅ´óÍ·²½½øµç»úµÄÎ»ÖÃËÙ¶ÈÄ£Ê½¡£
+/* ================= Hé¢˜ï¼šæŒ‰é¢˜å·åˆ’åˆ†çš„æ–°çŠ¶æ€æœº =================
+ * è¯´æ˜ï¼š
+ * 1. æœ¬å·¥ç¨‹åªè´Ÿè´£æ‘†æ†å’Œé’¢çƒæ§åˆ¶ï¼Œä¸è´Ÿè´£å°è½¦å¾ªè¿¹ã€‚
+ * 2. é¢˜1å›¾ä¼ ã€é¢˜2å°è½¦ä¸€åœˆè®¡æ—¶éƒ½ä¸å¯åŠ¨æ‘†æ†ï¼Œæœ¬çŠ¶æ€æœºåªå¤„ç†é¢˜3åˆ°é¢˜6ã€‚
+ * 3. è§†è§‰å…¥å£åœ¨ camera_data_update()ï¼Œå½“å‰çº¦å®š dx è¡¨ç¤ºé’¢çƒç›¸å¯¹ O ç‚¹çš„ä½ç½®åå·®ï¼Œå•ä½ cmã€‚
+ * 4. pitchmotor æš‚æ—¶ä½œä¸ºæ‘†æ†ç”µæœºä½¿ç”¨ï¼Œæ§åˆ¶æ–¹å¼æ˜¯å¼ å¤§å¤´æ­¥è¿›ç”µæœºçš„ä½ç½®é€Ÿåº¦æ¨¡å¼ã€‚
  */
 
-/* ¸ÖÇòÈÏÎªÎÈ¶¨µÄÎó²î·¶Î§¡£ÌâÄ¿ÒªÇóÎó²î¾ø¶ÔÖµ²»´óÓÚ 1cm£¬ËùÒÔÕâÀïÏÈÓÃ 1cm¡£ */
+/* é’¢çƒè®¤ä¸ºç¨³å®šçš„è¯¯å·®èŒƒå›´ã€‚é¢˜ç›®è¦æ±‚è¯¯å·®ç»å¯¹å€¼ä¸å¤§äº 1cmï¼Œæ‰€ä»¥è¿™é‡Œå…ˆç”¨ 1cmã€‚ */
 #define BALL_STABLE_ERR_CM       1.0f
 
-/* Ìâ3µÄÄ¿±êÂ·¾¶£ºO µã -> +5cm -> O µã -> -5cm¡£ */
+/* é¢˜3çš„ç›®æ ‡è·¯å¾„ï¼šO ç‚¹ -> +5cm -> O ç‚¹ -> -5cmã€‚ */
 #define BALL_TASK3_PLUS_CM       5.0f
 #define BALL_TASK3_MINUS_CM     -5.0f
-/* Ìâ3°Ñ +5cm ºÍ O µã¶¼µ±¹ı³Ìµã£¬²»µ±³¤Ê±¼äÎÈ¶¨µã¡£
- * ½øÈë +5cm ¸½½üºóÏÈ»Ø O µã¼õËÙ£¬¾­¹ı O µãºóÔÙ¼ÌĞøÈ¥ -5cm¡£
+/* é¢˜3æŠŠ +5cm å’Œ O ç‚¹éƒ½å½“è¿‡ç¨‹ç‚¹ï¼Œä¸å½“é•¿æ—¶é—´ç¨³å®šç‚¹ã€‚
+ * è¿›å…¥ +5cm é™„è¿‘åå…ˆå› O ç‚¹å‡é€Ÿï¼Œç»è¿‡ O ç‚¹åå†ç»§ç»­å» -5cmã€‚
  */
 #define BALL_TASK3_PLUS_HOLD_MS  30U
 
-/* ================= Ìâ3 Keil Watch ¼¯ÖĞµ÷ÊÔ±äÁ¿ =================
- * ºóĞøµ÷Ìâ3Ê±£¬Keil Watch ÀïÖ±½ÓËÑ dbg_task3_¡£
- * ÕâĞ©±äÁ¿²»ÓÃÖØ±à¾ÍÄÜ¸Ä£¬·½±ãÏÖ³¡Ö»¸ÄÒ»¸öÇøÓò£¬²»ÓÃÔÚ¶à¸öÎÄ¼şÀïÕÒºê¡£
+/* ================= é¢˜3 Keil Watch é›†ä¸­è°ƒè¯•å˜é‡ =================
+ * åç»­è°ƒé¢˜3æ—¶ï¼ŒKeil Watch é‡Œç›´æ¥æœ dbg_task3_ã€‚
+ * è¿™äº›å˜é‡ä¸ç”¨é‡ç¼–å°±èƒ½æ”¹ï¼Œæ–¹ä¾¿ç°åœºåªæ”¹ä¸€ä¸ªåŒºåŸŸï¼Œä¸ç”¨åœ¨å¤šä¸ªæ–‡ä»¶é‡Œæ‰¾å®ã€‚
  */
-volatile float dbg_task3_plus_reached_cm = 5.5f;       // +5cm µÚÒ»¶Îµ½´ïÅĞ¶¨ãĞÖµ£»ÊÓ¾õÊÇÇ°ÊÓÔ¤²âÖµ£¬¿ÉÂÔ´óÓÚ 5cm
-volatile float dbg_task3_plus_ctrl_target_cm = 4.5f;   // +5cm µÚÒ»¶Î¸ø PID µÄÄÚ²¿Ä¿±ê£¬¿ÉÂÔ´óÓÚ 5cm ·ÀÖ¹µ½ 5 Ç°Í£×¡
-volatile float dbg_task3_center_margin_cm = 0.5f;      // +5cm »Ø O µãÊ±£¬Çò½ø O µã¸½½ü¶àÉÙ cm ºó½øÈëÈ¥ -5cm ½×¶Î
-volatile float dbg_task3_target_reached_cm = 0.2f;     // Æ½»¬Ä¿±ê»Øµ½ O µã¸½½üµÄÅĞ¶ÏãĞÖµ
-volatile float dbg_task3_center_vel_limit_cm_s = 2.5f; // +5cm »Ø O µãºó£¬ËÙ¶ÈµÍÓÚ¸ÃÖµ²ÅÔÊĞí½øÈë -5cm ½×¶Î£¬Ô½Ğ¡É²µÃÔ½ÎÈ
-volatile float dbg_task3_target_slew_cm_s = 25.0f;     // Ìâ3Ä¿±êĞ±ÆÂËÙ¶È£¬µ¥Î» cm/s£¬Èı¶Î¹²ÓÃ
-volatile float dbg_task3_plus_ff_deg = 2.0f;           // Ìâ3µÚÒ»½×¶Î 0->+5cm ÍÆ½ø²¹³¥½Ç¶È£¬·½Ïò´í¾Í·´ºÅ
-volatile uint8_t dbg_task3_plus_openloop_enable = 1U; // 1 µÚÒ»½×¶Î 0->+5cm ²»ÅÜ PID£¬Ö±½ÓÏÂ·¢¹Ì¶¨°Ú¸Ë½Ç¶È
-volatile float dbg_task3_plus_openloop_deg = 6.0f;   // µÚÒ»½×¶Î¹Ì¶¨°Ú¸Ë½Ç¶È£¬µ¥Î» deg£¬×îÖÕÃüÁî = ROD_CENTER_DEG + Õâ¸öÖµ
-volatile float dbg_task3_plus_openloop_switch_cm = 4.5f; // ¿ª»· 0->+5cm ÌáÇ°ÇĞ PID µÄÎ»ÖÃ£¬Ì«Íí¾Íµ÷Ğ¡£¬Ì«Ôç¾Íµ÷´ó
-volatile float dbg_task3_minus_ff_deg = 0.0f;          // Ìâ3µÚÈı½×¶Î 0->-5cm ÍÆ½ø/±£³Ö²¹³¥½Ç¶È£¬·½Ïò´í¾Í·´ºÅ
-volatile float dbg_task3_minus_overrun_start_cm = -5.3f; // Çò³å¹ı -5 µ½¸ÃÎ»ÖÃºó´¥·¢¿ìËÙÌ§¸Ë²¹³¥£¬Ô½Ğ¡Ô½Íí
-volatile float dbg_task3_minus_overrun_vel_cm_s = -2.0f; // Çò¼ÌĞøÍù - ·½Ïò¹öÇÒËÙ¶ÈĞ¡ÓÚ¸ÃÖµ²Å´¥·¢£¬¹ıÂËÔëÉù
-volatile float dbg_task3_minus_overrun_ff_deg = 2.0f; // ³å¹ı -5 ºó¿ìËÙÌ§¸Ë²¹³¥½Ç¶È£¬À­»ØÌ«¶à¾Íµ÷Ğ¡£¬·½Ïò´í¾Í·´ºÅ
-volatile float dbg_task3_minus_overrun_ff_applied_deg = 0.0f; // Watch ¹Û²ìÓÃ£ºÊµ¼Ê³å¹ı -5 ºóµş¼ÓµÄ¿ìËÙ²¹³¥
-volatile float dbg_task3_minus_vel_brake_kd = 0.04f; // µÚÈı½×¶Î¶îÍâËÙ¶ÈÉ²³µ£¬Ô½´óÔ½Ó²£¬·½Ïò²»¶Ô¾Í·´ºÅ
-volatile float dbg_task3_minus_vel_brake_limit_deg = 2.0f; // µÚÈı½×¶Î¶îÍâËÙ¶ÈÉ²³µÏŞ·ù£¬µ¥Î» deg
-volatile float dbg_task3_minus_vel_brake_dead_cm_s = 3.0f; // µÚÈı½×¶Î¶îÍâËÙ¶ÈÉ²³µËÀÇø£¬Ğ¡ËÙ¶ÈÔëÉù²»É²³µ£¬µ¥Î» cm/s
-volatile float dbg_task3_minus_vel_brake_deg = 0.0f; // Watch ¹Û²ìÓÃ£ºµÚÈı½×¶ÎÊµ¼Ê¶îÍâÉ²³µ½Ç¶È
-volatile float dbg_task3_minus_hold_margin_cm = 0.5f; // µÚÈı½×¶Îµ½ -5cm ¸½½ü¶àÉÙ·¶Î§½øÈë±£³Ö£¬·ÀÖ¹µ½µã»¹Ì§¸Ë
-volatile float dbg_task3_minus_hold_vel_cm_s = 2.0f; // µÚÈı½×¶Î½øÈë±£³ÖµÄËÙ¶ÈÃÅ¼÷£¬Ô½Ğ¡Ô½ÑÏ¸ñ£¬µ¥Î» cm/s
-volatile uint8_t dbg_task3_minus_hold_active = 0U; // Watch ¹Û²ìÓÃ£º1 ±íÊ¾ -5cm ÖÕµã±£³ÖÕıÔÚ½Ó¹ÜÊä³ö
-volatile float dbg_task3_vel_filter_alpha = 0.08f;     // Ìâ3ËÙ¶È×èÄáÂË²¨ÏµÊı£¬Ô½Ğ¡Ô½Èá£¬Ô½´óÔ½¸úÊÖ£¬½¨Òé 0.05~0.30
-volatile float dbg_task3_d_term_limit_deg = 2.0f;      // Ìâ3 D ÏîÊä³öÏŞ·ù£¬±ÜÃâ kd Ò»¼Ó°Ú¸Ë¾ÍÃÍ³é£¬µ¥Î» deg
-volatile float dbg_task3_vel_used_cm_s = 0.0f;         // Watch ¹Û²ìÓÃ£ºÂË²¨ºóÊµ¼Ê²ÎÓë D ÏîµÄËÙ¶È
-volatile float dbg_task3_ff_applied_deg = 0.0f;        // Watch ¹Û²ìÓÃ£ºµ±Ç°½×¶ÎÊµ¼Êµş¼ÓµÄ¹Ì¶¨²¹³¥½Ç¶È
-/* Ìâ3×ÜÊ±¼äÒªÇó²»³¬¹ı 5s£¬ÕâÀïÓÃ 5000ms ×ö½áÊøÅĞ¶¨²Î¿¼¡£ */
+volatile float dbg_task3_plus_reached_cm = 5.5f;       // +5cm ç¬¬ä¸€æ®µåˆ°è¾¾åˆ¤å®šé˜ˆå€¼ï¼›è§†è§‰æ˜¯å‰è§†é¢„æµ‹å€¼ï¼Œå¯ç•¥å¤§äº 5cm
+volatile float dbg_task3_plus_ctrl_target_cm = 4.5f;   // +5cm ç¬¬ä¸€æ®µç»™ PID çš„å†…éƒ¨ç›®æ ‡ï¼Œå¯ç•¥å¤§äº 5cm é˜²æ­¢åˆ° 5 å‰åœä½
+volatile float dbg_task3_center_margin_cm = 0.5f;      // +5cm å› O ç‚¹æ—¶ï¼Œçƒè¿› O ç‚¹é™„è¿‘å¤šå°‘ cm åè¿›å…¥å» -5cm é˜¶æ®µ
+volatile float dbg_task3_target_reached_cm = 0.2f;     // å¹³æ»‘ç›®æ ‡å›åˆ° O ç‚¹é™„è¿‘çš„åˆ¤æ–­é˜ˆå€¼
+volatile float dbg_task3_center_vel_limit_cm_s = 2.5f; // +5cm å› O ç‚¹åï¼Œé€Ÿåº¦ä½äºè¯¥å€¼æ‰å…è®¸è¿›å…¥ -5cm é˜¶æ®µï¼Œè¶Šå°åˆ¹å¾—è¶Šç¨³
+volatile float dbg_task3_target_slew_cm_s = 25.0f;     // é¢˜3ç›®æ ‡æ–œå¡é€Ÿåº¦ï¼Œå•ä½ cm/sï¼Œä¸‰æ®µå…±ç”¨
+volatile float dbg_task3_plus_ff_deg = 2.0f;           // é¢˜3ç¬¬ä¸€é˜¶æ®µ 0->+5cm æ¨è¿›è¡¥å¿è§’åº¦ï¼Œæ–¹å‘é”™å°±åå·
+volatile uint8_t dbg_task3_plus_openloop_enable = 1U; // 1 ç¬¬ä¸€é˜¶æ®µ 0->+5cm ä¸è·‘ PIDï¼Œç›´æ¥ä¸‹å‘å›ºå®šæ‘†æ†è§’åº¦
+volatile float dbg_task3_plus_openloop_deg = 6.0f;   // ç¬¬ä¸€é˜¶æ®µå›ºå®šæ‘†æ†è§’åº¦ï¼Œå•ä½ degï¼Œæœ€ç»ˆå‘½ä»¤ = ROD_CENTER_DEG + è¿™ä¸ªå€¼
+volatile float dbg_task3_plus_openloop_switch_cm = 4.5f; // å¼€ç¯ 0->+5cm æå‰åˆ‡ PID çš„ä½ç½®ï¼Œå¤ªæ™šå°±è°ƒå°ï¼Œå¤ªæ—©å°±è°ƒå¤§
+volatile float dbg_task3_minus_ff_deg = 0.0f;          // é¢˜3ç¬¬ä¸‰é˜¶æ®µ 0->-5cm æ¨è¿›/ä¿æŒè¡¥å¿è§’åº¦ï¼Œæ–¹å‘é”™å°±åå·
+volatile float dbg_task3_minus_overrun_start_cm = -5.3f; // çƒå†²è¿‡ -5 åˆ°è¯¥ä½ç½®åè§¦å‘å¿«é€ŸæŠ¬æ†è¡¥å¿ï¼Œè¶Šå°è¶Šæ™š
+volatile float dbg_task3_minus_overrun_vel_cm_s = -2.0f; // çƒç»§ç»­å¾€ - æ–¹å‘æ»šä¸”é€Ÿåº¦å°äºè¯¥å€¼æ‰è§¦å‘ï¼Œè¿‡æ»¤å™ªå£°
+volatile float dbg_task3_minus_overrun_ff_deg = 2.0f; // å†²è¿‡ -5 åå¿«é€ŸæŠ¬æ†è¡¥å¿è§’åº¦ï¼Œæ‹‰å›å¤ªå¤šå°±è°ƒå°ï¼Œæ–¹å‘é”™å°±åå·
+volatile float dbg_task3_minus_overrun_ff_applied_deg = 0.0f; // Watch è§‚å¯Ÿç”¨ï¼šå®é™…å†²è¿‡ -5 åå åŠ çš„å¿«é€Ÿè¡¥å¿
+volatile float dbg_task3_minus_vel_brake_kd = 0.04f; // ç¬¬ä¸‰é˜¶æ®µé¢å¤–é€Ÿåº¦åˆ¹è½¦ï¼Œè¶Šå¤§è¶Šç¡¬ï¼Œæ–¹å‘ä¸å¯¹å°±åå·
+volatile float dbg_task3_minus_vel_brake_limit_deg = 2.0f; // ç¬¬ä¸‰é˜¶æ®µé¢å¤–é€Ÿåº¦åˆ¹è½¦é™å¹…ï¼Œå•ä½ deg
+volatile float dbg_task3_minus_vel_brake_dead_cm_s = 3.0f; // ç¬¬ä¸‰é˜¶æ®µé¢å¤–é€Ÿåº¦åˆ¹è½¦æ­»åŒºï¼Œå°é€Ÿåº¦å™ªå£°ä¸åˆ¹è½¦ï¼Œå•ä½ cm/s
+volatile float dbg_task3_minus_vel_brake_deg = 0.0f; // Watch è§‚å¯Ÿç”¨ï¼šç¬¬ä¸‰é˜¶æ®µå®é™…é¢å¤–åˆ¹è½¦è§’åº¦
+volatile float dbg_task3_minus_hold_margin_cm = 0.5f; // ç¬¬ä¸‰é˜¶æ®µåˆ° -5cm é™„è¿‘å¤šå°‘èŒƒå›´è¿›å…¥ä¿æŒï¼Œé˜²æ­¢åˆ°ç‚¹è¿˜æŠ¬æ†
+volatile float dbg_task3_minus_hold_vel_cm_s = 2.0f; // ç¬¬ä¸‰é˜¶æ®µè¿›å…¥ä¿æŒçš„é€Ÿåº¦é—¨æ§›ï¼Œè¶Šå°è¶Šä¸¥æ ¼ï¼Œå•ä½ cm/s
+volatile uint8_t dbg_task3_minus_hold_active = 0U; // Watch è§‚å¯Ÿç”¨ï¼š1 è¡¨ç¤º -5cm ç»ˆç‚¹ä¿æŒæ­£åœ¨æ¥ç®¡è¾“å‡º
+volatile float dbg_task3_vel_filter_alpha = 0.01f;     // é¢˜3é€Ÿåº¦é˜»å°¼æ»¤æ³¢ç³»æ•°ï¼Œè¶Šå°è¶ŠæŸ”ï¼Œè¶Šå¤§è¶Šè·Ÿæ‰‹ï¼Œå»ºè®® 0.05~0.30
+volatile float dbg_task3_d_term_limit_deg = 2.0f;      // é¢˜3 D é¡¹è¾“å‡ºé™å¹…ï¼Œé¿å… kd ä¸€åŠ æ‘†æ†å°±çŒ›æŠ½ï¼Œå•ä½ deg
+volatile float dbg_task3_vel_used_cm_s = 0.0f;         // Watch è§‚å¯Ÿç”¨ï¼šæ»¤æ³¢åå®é™…å‚ä¸ D é¡¹çš„é€Ÿåº¦
+volatile float dbg_task3_ff_applied_deg = 0.0f;        // Watch è§‚å¯Ÿç”¨ï¼šå½“å‰é˜¶æ®µå®é™…å åŠ çš„å›ºå®šè¡¥å¿è§’åº¦
+/* é¢˜3æ€»æ—¶é—´è¦æ±‚ä¸è¶…è¿‡ 5sï¼Œè¿™é‡Œç”¨ 5000ms åšç»“æŸåˆ¤å®šå‚è€ƒã€‚ */
 #define BALL_TASK3_TOTAL_MS     5000U
 
-/* Ìâ4ÒªÇó A µ½ B ²»³¬¹ı 8s£¬Í¬Ê±¸ÖÇò±£³ÖÔÚ O µã¸½½ü¡£ */
+/* é¢˜4è¦æ±‚ A åˆ° B ä¸è¶…è¿‡ 8sï¼ŒåŒæ—¶é’¢çƒä¿æŒåœ¨ O ç‚¹é™„è¿‘ã€‚ */
 #define TASK4_AB_LIMIT_MS       8000U
 
-/* Ìâ5ÒªÇóÒ»È¦²»³¬¹ı 30s£¬Í¬Ê±¸ÖÇò±£³ÖÔÚ O µã¸½½ü¡£ */
+/* é¢˜5è¦æ±‚ä¸€åœˆä¸è¶…è¿‡ 30sï¼ŒåŒæ—¶é’¢çƒä¿æŒåœ¨ O ç‚¹é™„è¿‘ã€‚ */
 #define TASK5_LAP_LIMIT_MS     30000U
 
-/* Ìâ6ÒªÇóÒ»È¦²»³¬¹ı 30s£¬Í¬Ê±¸ÖÇò±£³ÖÔÚÖ¸¶¨Î»ÖÃ¸½½ü¡£ */
+/* é¢˜6è¦æ±‚ä¸€åœˆä¸è¶…è¿‡ 30sï¼ŒåŒæ—¶é’¢çƒä¿æŒåœ¨æŒ‡å®šä½ç½®é™„è¿‘ã€‚ */
 #define TASK6_LAP_LIMIT_MS     30000U
 
-/* Çå¿Õ H Ìâ×´Ì¬»úµÄÔËĞĞ±äÁ¿¡£
- * Ã¿´Î´Ó²Ëµ¥Æô¶¯Ò»¸öÌâÄ¿Ê±¶¼»áµ÷ÓÃ£¬·ÀÖ¹ÉÏÒ»´ÎÈÎÎñµÄ¼ÆÊ±¡¢ÎÈ¶¨¼ÆÊı¡¢½×¶Î±êÖ¾²ĞÁô¡£
+/* æ¸…ç©º H é¢˜çŠ¶æ€æœºçš„è¿è¡Œå˜é‡ã€‚
+ * æ¯æ¬¡ä»èœå•å¯åŠ¨ä¸€ä¸ªé¢˜ç›®æ—¶éƒ½ä¼šè°ƒç”¨ï¼Œé˜²æ­¢ä¸Šä¸€æ¬¡ä»»åŠ¡çš„è®¡æ—¶ã€ç¨³å®šè®¡æ•°ã€é˜¶æ®µæ ‡å¿—æ®‹ç•™ã€‚
  */
 static void balance_reset_runtime(void)
 {
-    gimbal_sm_obj.elapsed_ms = 0;        // µ±Ç°×´Ì¬ÔËĞĞÊ±¼äÇåÁã
-    gimbal_sm_obj.stable_ms = 0;         // ÎÈ¶¨¼ÆÊ±ÇåÁã
-    gimbal_sm_obj.task3_phase = 0;       // Ìâ3´ÓµÚÒ»½×¶Î¿ªÊ¼£ºÏÈÈ¥ +5cm
-    gimbal_sm_obj.finished = 0;          // ÈÎÎñÍê³É±êÖ¾ÇåÁã
-    gimbal_sm_obj.task3_target_cmd_cm = 0.0f; // Ìâ3Æ½»¬Ä¿±ê´Ó O µã¿ªÊ¼
-    sys.value.task_run_time_ms = 0;      // ¶ÔÍâÏÔÊ¾µÄÈÎÎñ¼ÆÊ±ÇåÁã
-    sys.value.car_run_time_ms = 0;       // ¶ÔÍâÏÔÊ¾µÄĞ¡³µ¼ÆÊ±ÇåÁã
+    gimbal_sm_obj.elapsed_ms = 0;        // å½“å‰çŠ¶æ€è¿è¡Œæ—¶é—´æ¸…é›¶
+    gimbal_sm_obj.stable_ms = 0;         // ç¨³å®šè®¡æ—¶æ¸…é›¶
+    gimbal_sm_obj.task3_phase = 0;       // é¢˜3ä»ç¬¬ä¸€é˜¶æ®µå¼€å§‹ï¼šå…ˆå» +5cm
+    gimbal_sm_obj.finished = 0;          // ä»»åŠ¡å®Œæˆæ ‡å¿—æ¸…é›¶
+    gimbal_sm_obj.task3_target_cmd_cm = 0.0f; // é¢˜3å¹³æ»‘ç›®æ ‡ä» O ç‚¹å¼€å§‹
+    sys.value.task_run_time_ms = 0;      // å¯¹å¤–æ˜¾ç¤ºçš„ä»»åŠ¡è®¡æ—¶æ¸…é›¶
+    sys.value.car_run_time_ms = 0;       // å¯¹å¤–æ˜¾ç¤ºçš„å°è½¦è®¡æ—¶æ¸…é›¶
 }
 
-/* ´Ó²Ëµ¥Æô¶¯Ä³Ò»µÀ H Ìâ¡£
- * state ´«Èë BALANCE_TASK3_STATIC_PLUS_TO_MINUS µ½ BALANCE_TASK6_CAR_LAP_SETPOINT ÖĞµÄÒ»¸ö¡£
- * Ìâ6±È½ÏÌØÊâ£¬ËüµÄÄ¿±êµãÀ´×Ô sys.ctrl.ball_task6_target_cm£»ÆäËûÌâÄ¬ÈÏÄ¿±êµãÏÈÉèÎª O µã 0cm¡£
+/* ä»èœå•å¯åŠ¨æŸä¸€é“ H é¢˜ã€‚
+ * state ä¼ å…¥ BALANCE_TASK3_STATIC_PLUS_TO_MINUS åˆ° BALANCE_TASK6_CAR_LAP_SETPOINT ä¸­çš„ä¸€ä¸ªã€‚
+ * é¢˜6æ¯”è¾ƒç‰¹æ®Šï¼Œå®ƒçš„ç›®æ ‡ç‚¹æ¥è‡ª sys.ctrl.ball_task6_target_cmï¼›å…¶ä»–é¢˜é»˜è®¤ç›®æ ‡ç‚¹å…ˆè®¾ä¸º O ç‚¹ 0cmã€‚
  */
 void balance_task_start(gimbal_state state)
 {
@@ -98,9 +98,9 @@ void balance_task_start(gimbal_state state)
 
 }
 
-/* ÅĞ¶Ï¸ÖÇòÊÇ·ñÒÑ¾­ÎÈ¶¨ÔÚµ±Ç°Ä¿±êµã¸½½ü¡£
- * sys.value.ball_pos_cm À´×ÔÊÓ¾õÂË²¨ºóµÄÎ»ÖÃ¡£
- * sys.ctrl.ball_target_cm ÊÇµ±Ç°ÌâÄ¿Ï£Íû¸ÖÇò±£³ÖµÄÎ»ÖÃ¡£
+/* åˆ¤æ–­é’¢çƒæ˜¯å¦å·²ç»ç¨³å®šåœ¨å½“å‰ç›®æ ‡ç‚¹é™„è¿‘ã€‚
+ * sys.value.ball_pos_cm æ¥è‡ªè§†è§‰æ»¤æ³¢åçš„ä½ç½®ã€‚
+ * sys.ctrl.ball_target_cm æ˜¯å½“å‰é¢˜ç›®å¸Œæœ›é’¢çƒä¿æŒçš„ä½ç½®ã€‚
  */
 static uint8_t balance_ball_stable(void)
 {
@@ -109,9 +109,9 @@ static uint8_t balance_ball_stable(void)
 
 static uint8_t balance_task3_plus_turn_reached(void)
 {
-    /* +5cm ÊÇÕÛ·µµã£¬²»ÊÇ×îÖÕÍ£³µµã¡£
-     * ×¢Òâ£ºÕâÀï²»ÄÜÓÃ stable_ms ÅĞ¶Ï¡£Ìâ3Æ½»¬Ä¿±ê´Ó 0cm Æğ²½£¬ÇòÒ»¿ªÊ¼¾ÍÔÚ O µã¸½½ü£¬
-     * Èç¹ûÓÃ stable_ms »áÎóÅĞÎªÒÑ¾­µ½´ï +5cm£¬µ¼ÖÂ×´Ì¬»úÖ±½ÓÌøµ½ -5cm¡£
+    /* +5cm æ˜¯æŠ˜è¿”ç‚¹ï¼Œä¸æ˜¯æœ€ç»ˆåœè½¦ç‚¹ã€‚
+     * æ³¨æ„ï¼šè¿™é‡Œä¸èƒ½ç”¨ stable_ms åˆ¤æ–­ã€‚é¢˜3å¹³æ»‘ç›®æ ‡ä» 0cm èµ·æ­¥ï¼Œçƒä¸€å¼€å§‹å°±åœ¨ O ç‚¹é™„è¿‘ï¼Œ
+     * å¦‚æœç”¨ stable_ms ä¼šè¯¯åˆ¤ä¸ºå·²ç»åˆ°è¾¾ +5cmï¼Œå¯¼è‡´çŠ¶æ€æœºç›´æ¥è·³åˆ° -5cmã€‚
      */
     if (dbg_task3_plus_openloop_enable != 0U)
         return (sys.value.ball_pos_cm >= dbg_task3_plus_openloop_switch_cm) ? 1U : 0U;
@@ -121,9 +121,9 @@ static uint8_t balance_task3_plus_turn_reached(void)
 
 static uint8_t balance_task3_center_reached(void)
 {
-    /* ´Ó +5cm ÕÛ·µ»ØÀ´Ê±£¬¾­¹ı O µã¸½½ü¾Í½øÈëµÚÈı½×¶Î¡£
-     * ±ØĞëÍ¬Ê±Âú×ã¡°Æ½»¬Ä¿±êÒÑ¾­»Øµ½ O µã¸½½ü¡±¡°ÇòÒ²»Øµ½ O µã¸½½ü¡±¡°ÇòËÙÒÑ¾­Ñ¹ÏÂÀ´¡±£¬
-     * ·ÀÖ¹Çò´ø×Å´óËÙ¶È¹ı O µãºóÖ±½Ó³åÏò -5cm¡£
+    /* ä» +5cm æŠ˜è¿”å›æ¥æ—¶ï¼Œç»è¿‡ O ç‚¹é™„è¿‘å°±è¿›å…¥ç¬¬ä¸‰é˜¶æ®µã€‚
+     * å¿…é¡»åŒæ—¶æ»¡è¶³â€œå¹³æ»‘ç›®æ ‡å·²ç»å›åˆ° O ç‚¹é™„è¿‘â€â€œçƒä¹Ÿå›åˆ° O ç‚¹é™„è¿‘â€â€œçƒé€Ÿå·²ç»å‹ä¸‹æ¥â€ï¼Œ
+     * é˜²æ­¢çƒå¸¦ç€å¤§é€Ÿåº¦è¿‡ O ç‚¹åç›´æ¥å†²å‘ -5cmã€‚
      */
     if (fabsf(gimbal_sm_obj.task3_target_cmd_cm) > dbg_task3_target_reached_cm)
         return 0U;
@@ -140,8 +140,8 @@ static float balance_slew_target_cm(float current_cm, float target_cm, float sle
 {
     float step_cm = slew_cm_s * 0.001f;
 
-    /* Ìâ3Ä¿±êĞ±ÆÂ£ºPID ¿´µ½µÄÊÇÒ»¸ö»áÒÆ¶¯µÄĞéÄâÖÕµã£¬¶ø²»ÊÇ +5cm µ½ -5cm µÄË²¼äÌø±ä¡£
-     * ÕâÑùÕÛ·µÊ±°Ú¸Ë²»»áÒ»ÏÂ×Ó´òµ½¼«ÏŞ£¬¸ÖÇòËÙ¶È¸üÈİÒ×±»À­×¡¡£
+    /* é¢˜3ç›®æ ‡æ–œå¡ï¼šPID çœ‹åˆ°çš„æ˜¯ä¸€ä¸ªä¼šç§»åŠ¨çš„è™šæ‹Ÿç»ˆç‚¹ï¼Œè€Œä¸æ˜¯ +5cm åˆ° -5cm çš„ç¬é—´è·³å˜ã€‚
+     * è¿™æ ·æŠ˜è¿”æ—¶æ‘†æ†ä¸ä¼šä¸€ä¸‹å­æ‰“åˆ°æé™ï¼Œé’¢çƒé€Ÿåº¦æ›´å®¹æ˜“è¢«æ‹‰ä½ã€‚
      */
     if (current_cm < (target_cm - step_cm))
         return current_cm + step_cm;
@@ -151,8 +151,8 @@ static float balance_slew_target_cm(float current_cm, float target_cm, float sle
 
     return target_cm;
 }
-/* ¸üĞÂÎÈ¶¨¼ÆÊ±¡£
- * Ö»Òª¸ÖÇò»¹ÔÚÔÊĞíÎó²î·¶Î§ÄÚ£¬stable_ms ¾Í³ÖĞøÀÛ¼Ó£»Ò»µ©ÅÜ³öÎó²î·¶Î§¾ÍÇåÁã¡£
+/* æ›´æ–°ç¨³å®šè®¡æ—¶ã€‚
+ * åªè¦é’¢çƒè¿˜åœ¨å…è®¸è¯¯å·®èŒƒå›´å†…ï¼Œstable_ms å°±æŒç»­ç´¯åŠ ï¼›ä¸€æ—¦è·‘å‡ºè¯¯å·®èŒƒå›´å°±æ¸…é›¶ã€‚
  */
 static void balance_update_stable_counter(void)
 {
@@ -167,30 +167,30 @@ static void balance_update_stable_counter(void)
     }
 }
 
-/* Ã¿ 1ms µ÷ÓÃÒ»´ÎµÄÈÎÎñ¼ÆÊ±¡£
- * gimbal_task_state() ·ÅÔÚÖ÷Ñ­»·»ò¶¨Ê±ÈÎÎñÀïÔËĞĞÊ±£¬ÕâÀïÄ¬ÈÏÃ¿½øÀ´Ò»´Î¾ÍÊÇ 1ms¡£
+/* æ¯ 1ms è°ƒç”¨ä¸€æ¬¡çš„ä»»åŠ¡è®¡æ—¶ã€‚
+ * gimbal_task_state() æ”¾åœ¨ä¸»å¾ªç¯æˆ–å®šæ—¶ä»»åŠ¡é‡Œè¿è¡Œæ—¶ï¼Œè¿™é‡Œé»˜è®¤æ¯è¿›æ¥ä¸€æ¬¡å°±æ˜¯ 1msã€‚
  */
 static void balance_tick_time(void)
 {
     if (gimbal_sm_obj.elapsed_ms < 600000U)
         gimbal_sm_obj.elapsed_ms++;
 
-    /* ÕâÁ½¸öÖµÓÃÓÚ OLED/´®¿ÚµÈµØ·½ÏÔÊ¾ÔËĞĞÊ±¼ä¡£ */
+    /* è¿™ä¸¤ä¸ªå€¼ç”¨äº OLED/ä¸²å£ç­‰åœ°æ–¹æ˜¾ç¤ºè¿è¡Œæ—¶é—´ã€‚ */
     sys.value.task_run_time_ms = gimbal_sm_obj.elapsed_ms;
     sys.value.car_run_time_ms = gimbal_sm_obj.elapsed_ms;
 }
 
-/* Ìâ3£ºĞ¡³µ¾²Ö¹£¬¿ØÖÆ¸ÖÇò´Ó O µãµ½ +5cm£¬ÔÙ»Øµ½ O µã¼õËÙ£¬×îºóÔËĞĞµ½ -5cm¡£
- * task3_phase = 0£º¿ØÖÆÄ¿±êÎª +5cm¡£
- * task3_phase = 1£º¿ØÖÆÄ¿±êÎª O µã£¬ÓÃÖĞµãµ±½×¶ÎÖÕµãÀ´Ñ¹ËÙ¶È¡£
- * task3_phase = 2£º¿ØÖÆÄ¿±êÎª -5cm£¬²¢ÎÈ¶¨ÔÚ -5cm ¸½½ü¡£
+/* é¢˜3ï¼šå°è½¦é™æ­¢ï¼Œæ§åˆ¶é’¢çƒä» O ç‚¹åˆ° +5cmï¼Œå†å›åˆ° O ç‚¹å‡é€Ÿï¼Œæœ€åè¿è¡Œåˆ° -5cmã€‚
+ * task3_phase = 0ï¼šæ§åˆ¶ç›®æ ‡ä¸º +5cmã€‚
+ * task3_phase = 1ï¼šæ§åˆ¶ç›®æ ‡ä¸º O ç‚¹ï¼Œç”¨ä¸­ç‚¹å½“é˜¶æ®µç»ˆç‚¹æ¥å‹é€Ÿåº¦ã€‚
+ * task3_phase = 2ï¼šæ§åˆ¶ç›®æ ‡ä¸º -5cmï¼Œå¹¶ç¨³å®šåœ¨ -5cm é™„è¿‘ã€‚
  */
 static void balance_task3_static_pm5(void)
 {
     if (gimbal_sm_obj.task3_phase == 0U)
     {
-        /* µÚÒ»½×¶Î£ºÈÃ¸ÖÇòÏò +5cm ÔË¶¯¡£
-         * ÕâÀï¸ø PID µÄ²»ÊÇÓ²Ä¿±ê +5cm£¬¶øÊÇÖğ²½¿¿½ü +5cm µÄÆ½»¬Ä¿±ê¡£
+        /* ç¬¬ä¸€é˜¶æ®µï¼šè®©é’¢çƒå‘ +5cm è¿åŠ¨ã€‚
+         * è¿™é‡Œç»™ PID çš„ä¸æ˜¯ç¡¬ç›®æ ‡ +5cmï¼Œè€Œæ˜¯é€æ­¥é è¿‘ +5cm çš„å¹³æ»‘ç›®æ ‡ã€‚
          */
         gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
                                                                     dbg_task3_plus_ctrl_target_cm,
@@ -198,24 +198,26 @@ static void balance_task3_static_pm5(void)
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
 
-        /* µ½ +5cm ÕÛ·µµã¸½½üºó£º
-         * ¿ª»·²âÊÔÄ£Ê½ÏÂÖ±½Ó½øÈëµÚÈı½×¶Î£¬µ«Ä¿±êÈÔ°´Ğ±ÆÂÍù -5cm ×ß£»
-         * ÆÕÍ¨Ä£Ê½ÏÂÈÔÏÈ»Ø O µãÑ¹ËÙ¶È¡£
+        /* åˆ° +5cm æŠ˜è¿”ç‚¹é™„è¿‘åï¼š
+         * å¼€ç¯æµ‹è¯•æ¨¡å¼ä¸‹ç›´æ¥è¿›å…¥ç¬¬ä¸‰é˜¶æ®µï¼Œä½†ç›®æ ‡ä»æŒ‰æ–œå¡å¾€ -5cm èµ°ï¼›
+         * æ™®é€šæ¨¡å¼ä¸‹ä»å…ˆå› O ç‚¹å‹é€Ÿåº¦ã€‚
          */
         if (balance_task3_plus_turn_reached())
         {
             gimbal_sm_obj.task3_phase = (dbg_task3_plus_openloop_enable != 0U) ? 2U : 1U;
             gimbal_sm_obj.stable_ms = 0;
 
-            /* ÇĞ»»¹ı³ÌµãÊ±Çåµô PID µÄ»ı·ÖºÍÉÏ´ÎÎó²î£¬¼õÉÙÕÛ·µË²¼äÍÏÎ²¡£ */
-            sys.camera_x_pid.i_term = 0.0f;
-            sys.camera_x_pid.pre_err = 0.0f;
+            /* åˆ‡æ¢è¿‡ç¨‹ç‚¹æ—¶æ¸…æ‰ PID çš„ç§¯åˆ†å’Œä¸Šæ¬¡è¯¯å·®ï¼Œå‡å°‘æŠ˜è¿”ç¬é—´æ‹–å°¾ã€‚ */
+            sys.ball_static_pid.position.i_term = 0.0f;
+            sys.ball_static_pid.position.pre_err = 0.0f;
+            sys.ball_static_pid.velocity.i_term = 0.0f;
+            sys.ball_static_pid.velocity.pre_err = 0.0f;
         }
     }
     else if (gimbal_sm_obj.task3_phase == 1U)
     {
-        /* µÚ¶ş½×¶Î£º´Ó +5cm ÕÛ·µ»Ø O µã¡£
-         * O µãÖ»ÊÇ¹ı³ÌÖÕµã£¬ÓÃÀ´°ÑÇòËÙÑ¹ÏÂÀ´£¬²»ÔÚÕâÀï³¤Ê±¼äÍ£Áô¡£
+        /* ç¬¬äºŒé˜¶æ®µï¼šä» +5cm æŠ˜è¿”å› O ç‚¹ã€‚
+         * O ç‚¹åªæ˜¯è¿‡ç¨‹ç»ˆç‚¹ï¼Œç”¨æ¥æŠŠçƒé€Ÿå‹ä¸‹æ¥ï¼Œä¸åœ¨è¿™é‡Œé•¿æ—¶é—´åœç•™ã€‚
          */
         gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
                                                                     0.0f,
@@ -223,20 +225,22 @@ static void balance_task3_static_pm5(void)
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
         balance_update_stable_counter();
 
-        /* ¾­¹ı O µã¸½½üºó£¬ÔÙ½øÈëµÚÈı½×¶ÎÈ¥ -5cm¡£ */
+        /* ç»è¿‡ O ç‚¹é™„è¿‘åï¼Œå†è¿›å…¥ç¬¬ä¸‰é˜¶æ®µå» -5cmã€‚ */
         if (balance_task3_center_reached())
         {
             gimbal_sm_obj.task3_phase = 2U;
             gimbal_sm_obj.stable_ms = 0;
 
-            sys.camera_x_pid.i_term = 0.0f;
-            sys.camera_x_pid.pre_err = 0.0f;
+            sys.ball_static_pid.position.i_term = 0.0f;
+            sys.ball_static_pid.position.pre_err = 0.0f;
+            sys.ball_static_pid.velocity.i_term = 0.0f;
+            sys.ball_static_pid.velocity.pre_err = 0.0f;
         }
     }
     else
     {
-        /* µÚÈı½×¶Î£º´Ó O µã¸½½üÔËĞĞµ½ -5cm¡£
-         * ÈÔÈ»Ö»Ê¹ÓÃÍ¬Ò»¸öÆ½»¬Ä¿±êºÍÎ»ÖÃ±Õ»·£¬±ÜÃâ¶îÍâÌáÇ°É²³µÂß¼­¸ÉÈÅÏÖ³¡µ÷ÊÔ¡£
+        /* ç¬¬ä¸‰é˜¶æ®µï¼šä» O ç‚¹é™„è¿‘è¿è¡Œåˆ° -5cmã€‚
+         * ä»ç„¶åªä½¿ç”¨åŒä¸€ä¸ªå¹³æ»‘ç›®æ ‡å’Œä½ç½®é—­ç¯ï¼Œé¿å…é¢å¤–æå‰åˆ¹è½¦é€»è¾‘å¹²æ‰°ç°åœºè°ƒè¯•ã€‚
          */
         gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
                                                                     BALL_TASK3_MINUS_CM,
@@ -245,14 +249,14 @@ static void balance_task3_static_pm5(void)
         balance_update_stable_counter();
     }
 
-    /* Ìâ3ÒªÇó×ÜÔËĞĞÊ±¼ä²»³¬¹ı 5s¡£ÕâÀïµ½ 5s ºó£¬Èç¹û¸ÖÇòÒÑ¾­ÔÚ×îÖÕÄ¿±ê¸½½ü£¬¾ÍÖÃ finished¡£ */
+    /* é¢˜3è¦æ±‚æ€»è¿è¡Œæ—¶é—´ä¸è¶…è¿‡ 5sã€‚è¿™é‡Œåˆ° 5s åï¼Œå¦‚æœé’¢çƒå·²ç»åœ¨æœ€ç»ˆç›®æ ‡é™„è¿‘ï¼Œå°±ç½® finishedã€‚ */
     if (gimbal_sm_obj.elapsed_ms >= BALL_TASK3_TOTAL_MS && balance_ball_stable())
         gimbal_sm_obj.finished = 1U;
 }
-/* Ìâ4/Ìâ5/Ìâ6¹²ÓÃµÄÔË¶¯±£³Ö¿ØÖÆ¡£
- * target_cm ÊÇ±¾Ìâ¸ÖÇòÄ¿±êÎ»ÖÃ¡£
- * limit_ms ÊÇ±¾ÌâÊ±¼äÉÏÏŞ¡£µ½´ïÊ±¼äÉÏÏŞºóÖÃ finished£¬Êµ¼ÊÍ£³µ/Ñ­¼£ÓÉĞ¡³µ²¿·Ö´¦Àí¡£
- * ÕâÀïµ÷ÓÃÔË¶¯ PID£¬²¢µş¼Ó sys.ctrl.rod_chassis_ff_deg Õâ¸öµ×ÅÌÇ°À¡Õ¼Î»Á¿¡£
+/* é¢˜4/é¢˜5/é¢˜6å…±ç”¨çš„è¿åŠ¨ä¿æŒæ§åˆ¶ã€‚
+ * target_cm æ˜¯æœ¬é¢˜é’¢çƒç›®æ ‡ä½ç½®ã€‚
+ * limit_ms æ˜¯æœ¬é¢˜æ—¶é—´ä¸Šé™ã€‚åˆ°è¾¾æ—¶é—´ä¸Šé™åç½® finishedï¼Œå®é™…åœè½¦/å¾ªè¿¹ç”±å°è½¦éƒ¨åˆ†å¤„ç†ã€‚
+ * è¿™é‡Œè°ƒç”¨è¿åŠ¨ PIDï¼Œå¹¶å åŠ  sys.ctrl.rod_chassis_ff_deg è¿™ä¸ªåº•ç›˜å‰é¦ˆå ä½é‡ã€‚
  */
 static void balance_task_hold(float target_cm, uint32_t limit_ms)
 {
@@ -263,73 +267,73 @@ static void balance_task_hold(float target_cm, uint32_t limit_ms)
         gimbal_sm_obj.finished = 1U;
 }
 
-/* H Ìâ×Ü×´Ì¬»ú¡£
- * ²Ëµ¥È·ÈÏºó»áµ÷ÓÃ balance_task_start() ÇĞ»»µ½Ìâ3µ½Ìâ6×´Ì¬¡£
- * Ã¿¸ö·ÖÖ§Ö»¹Ü±¾ÌâµÄ°Ú¸Ë¶¯×÷ºÍ¼ÆÊ±£¬²»Ö±½Ó¿ØÖÆĞ¡³µÑ­¼£¡£
- * Ìâ1ºÍÌâ2²»¾­¹ıÕâÀï£¬ÒòÎªËüÃÇ²»ĞèÒªÆô¶¯°Ú¸Ë¿ØÖÆ¡£
+/* H é¢˜æ€»çŠ¶æ€æœºã€‚
+ * èœå•ç¡®è®¤åä¼šè°ƒç”¨ balance_task_start() åˆ‡æ¢åˆ°é¢˜3åˆ°é¢˜6çŠ¶æ€ã€‚
+ * æ¯ä¸ªåˆ†æ”¯åªç®¡æœ¬é¢˜çš„æ‘†æ†åŠ¨ä½œå’Œè®¡æ—¶ï¼Œä¸ç›´æ¥æ§åˆ¶å°è½¦å¾ªè¿¹ã€‚
+ * é¢˜1å’Œé¢˜2ä¸ç»è¿‡è¿™é‡Œï¼Œå› ä¸ºå®ƒä»¬ä¸éœ€è¦å¯åŠ¨æ‘†æ†æ§åˆ¶ã€‚
  */
 void gimbal_task_state(void)
 {
     if (balance_rod_limit_test_enabled())
     {
-        /* °Ú¸Ë»úĞµÏŞ·ù²âÊÔÄ£Ê½£ºÊ§ÄÜ pitchmotor£¬Ö»¶Á·´À¡£¬²»Ö´ĞĞÌâ3/4/5/6×´Ì¬»ú¡£ */
+        /* æ‘†æ†æœºæ¢°é™å¹…æµ‹è¯•æ¨¡å¼ï¼šå¤±èƒ½ pitchmotorï¼Œåªè¯»åé¦ˆï¼Œä¸æ‰§è¡Œé¢˜3/4/5/6çŠ¶æ€æœºã€‚ */
         balance_rod_limit_test_update();
         return;
     }
 
     if (balance_rod_cmd_limit_test_enabled())
     {
-        /* °Ú¸Ë×´Ì¬·´À¡µ÷ÊÔÄ£Ê½£ºKeil ÊÖ¶¯µ÷ kp/kd ºÍÄ¿±êÎ»ÖÃ£¬Î»ÖÃ/ËÙ¶ÈÓÉÊÓ¾õ¸üĞÂ¡£ */
+        /* æ‘†æ†çŠ¶æ€åé¦ˆè°ƒè¯•æ¨¡å¼ï¼šKeil æ‰‹åŠ¨è°ƒ kp/kd å’Œç›®æ ‡ä½ç½®ï¼Œä½ç½®/é€Ÿåº¦ç”±è§†è§‰æ›´æ–°ã€‚ */
         balance_rod_cmd_limit_test_update();
         return;
     }
 
     if (!balance_state_machine_enable)
     {
-        /* Ä¬ÈÏÖ»½ÓÊÕÊÓ¾õ£¬²»×Ô¶¯»ØÖĞ¡¢²»ÅÜÌâºÅ×´Ì¬»ú¡¢²»ÏÂ·¢°Ú¸ËÃüÁî¡£ */
+        /* é»˜è®¤åªæ¥æ”¶è§†è§‰ï¼Œä¸è‡ªåŠ¨å›ä¸­ã€ä¸è·‘é¢˜å·çŠ¶æ€æœºã€ä¸ä¸‹å‘æ‘†æ†å‘½ä»¤ã€‚ */
         return;
     }
 
     switch (gimbal_sm_obj.state)
     {
     case GIMBAL_IDLE:
-        /* ¿ÕÏĞ×´Ì¬£º°Ú¸Ë»ØÖĞ²¢Í£Ö¹¹öÇò¿ØÖÆ£¬Í¬Ê±Çå¿Õ¼ÆÊ±¡£ */
+        /* ç©ºé—²çŠ¶æ€ï¼šæ‘†æ†å›ä¸­å¹¶åœæ­¢æ»šçƒæ§åˆ¶ï¼ŒåŒæ—¶æ¸…ç©ºè®¡æ—¶ã€‚ */
         ball_balance_stop();
         balance_reset_runtime();
         break;
 
     case BALANCE_TASK3_STATIC_PLUS_TO_MINUS:
-        /* Ìâ3£º³µ¾²Ö¹£¬¸ÖÇò O µã -> +5cm -> O µã -> -5cm¡£ */
+        /* é¢˜3ï¼šè½¦é™æ­¢ï¼Œé’¢çƒ O ç‚¹ -> +5cm -> O ç‚¹ -> -5cmã€‚ */
         balance_tick_time();
         balance_task3_static_pm5();
         break;
 
     case BALANCE_TASK4_CAR_TO_B_CENTER:
-        /* Ìâ4£ºĞ¡³µ´Ó A µ½ B£¬¸ÖÇòÎÈ¶¨ÔÚ O µã¸½½ü¡£
-         * Ä¿±êÎ»ÖÃÊÇ 0cm£¬Ê±¼äÉÏÏŞÊÇ 8s¡£
+        /* é¢˜4ï¼šå°è½¦ä» A åˆ° Bï¼Œé’¢çƒç¨³å®šåœ¨ O ç‚¹é™„è¿‘ã€‚
+         * ç›®æ ‡ä½ç½®æ˜¯ 0cmï¼Œæ—¶é—´ä¸Šé™æ˜¯ 8sã€‚
          */
         balance_tick_time();
         balance_task_hold(0.0f, TASK4_AB_LIMIT_MS);
         break;
 
     case BALANCE_TASK5_CAR_LAP_CENTER:
-        /* Ìâ5£ºĞ¡³µË³Ê±ÕëÒ»È¦£¬¸ÖÇòÎÈ¶¨ÔÚ O µã¸½½ü¡£
-         * Ä¿±êÎ»ÖÃÊÇ 0cm£¬Ê±¼äÉÏÏŞÊÇ 30s¡£
+        /* é¢˜5ï¼šå°è½¦é¡ºæ—¶é’ˆä¸€åœˆï¼Œé’¢çƒç¨³å®šåœ¨ O ç‚¹é™„è¿‘ã€‚
+         * ç›®æ ‡ä½ç½®æ˜¯ 0cmï¼Œæ—¶é—´ä¸Šé™æ˜¯ 30sã€‚
          */
         balance_tick_time();
         balance_task_hold(0.0f, TASK5_LAP_LIMIT_MS);
         break;
 
     case BALANCE_TASK6_CAR_LAP_SETPOINT:
-        /* Ìâ6£ºĞ¡³µË³Ê±ÕëÒ»È¦£¬¸ÖÇòÎÈ¶¨ÔÚÈÎÒâÖ¸¶¨Î»ÖÃ¸½½ü¡£
-         * Ö¸¶¨Î»ÖÃĞèÒªÌáÇ°Ğ´Èë sys.ctrl.ball_task6_target_cm¡£
+        /* é¢˜6ï¼šå°è½¦é¡ºæ—¶é’ˆä¸€åœˆï¼Œé’¢çƒç¨³å®šåœ¨ä»»æ„æŒ‡å®šä½ç½®é™„è¿‘ã€‚
+         * æŒ‡å®šä½ç½®éœ€è¦æå‰å†™å…¥ sys.ctrl.ball_task6_target_cmã€‚
          */
         balance_tick_time();
         balance_task_hold(sys.ctrl.ball_task6_target_cm, TASK6_LAP_LIMIT_MS);
         break;
 
     default:
-        /* ·Ç H Ìâ×´Ì¬Í³Ò»»Ø¿ÕÏĞ£¬²»ÔÙ±£Áô¾É¼¤¹âÔÆÌ¨×´Ì¬»ú¡£ */
+        /* é H é¢˜çŠ¶æ€ç»Ÿä¸€å›ç©ºé—²ï¼Œä¸å†ä¿ç•™æ—§æ¿€å…‰äº‘å°çŠ¶æ€æœºã€‚ */
         balance_task_start(GIMBAL_IDLE);
         break;
     }

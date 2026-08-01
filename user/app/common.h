@@ -5,17 +5,17 @@
 #include "string.h"
 #include <stdbool.h>
 
-#define ANGLE_TO_RAD  M_PI / 180.0f  // ½Ç¶È×ªrad
+#define ANGLE_TO_RAD  M_PI / 180.0f  // è§’åº¦è½¬rad
 #define RAD_TO_ANGLE   180.0f / M_PI
 
-/* ========== ÊıÑ§ÔËËãºê ========== */
-#define SIGN(x) (((x) < 0.0f) ? -1.0f : 1.0f) // ·µ»Ø·ûºÅ£¨-1 »ò 1£©
-#define NORM2_f(x, y) (sqrtf(SQ(x) + SQ(y)))  // ¶şÎ¬ÏòÁ¿¶ş·¶Êı
+/* ========== æ•°å­¦è¿ç®—å® ========== */
+#define SIGN(x) (((x) < 0.0f) ? -1.0f : 1.0f) // è¿”å›ç¬¦å·ï¼ˆ-1 æˆ– 1ï¼‰
+#define NORM2_f(x, y) (sqrtf(SQ(x) + SQ(y)))  // äºŒç»´å‘é‡äºŒèŒƒæ•°
 
-/* ========== ¸¡µãÒì³£´¦Àíºê ========== */
-#define UTILS_IS_INF(x) ((x) == (1.0f / 0.0f) || (x) == (-1.0f / 0.0f)) // ÅĞ¶ÏÎŞÇî´ó
-#define UTILS_IS_NAN(x) ((x) != (x))                                    // ÅĞ¶Ï NaN
-#define UTILS_NAN_ZERO(x) (x = UTILS_IS_NAN(x) ? 0.0f : x)              // NaN ÖÃÁã
+/* ========== æµ®ç‚¹å¼‚å¸¸å¤„ç†å® ========== */
+#define UTILS_IS_INF(x) ((x) == (1.0f / 0.0f) || (x) == (-1.0f / 0.0f)) // åˆ¤æ–­æ— ç©·å¤§
+#define UTILS_IS_NAN(x) ((x) != (x))                                    // åˆ¤æ–­ NaN
+#define UTILS_NAN_ZERO(x) (x = UTILS_IS_NAN(x) ? 0.0f : x)              // NaN ç½®é›¶
 
 #define MIN_MAX_LIMT(in, low, high)       \
   (in = in > high ? high : in < low ? low \
@@ -24,17 +24,17 @@
   (in = in > outmax ? outmax : in < (-outmax) ? (-outmax) \
                                               : in)
 
-/* ========== ³£ÓÃÊıÑ§ºê ========== */
-#define SQ(x) ((x) * (x))             // Æ½·½
-#define ABS(x) ((x) > 0 ? (x) : -(x)) // ¾ø¶ÔÖµ
+/* ========== å¸¸ç”¨æ•°å­¦å® ========== */
+#define SQ(x) ((x) * (x))             // å¹³æ–¹
+#define ABS(x) ((x) > 0 ? (x) : -(x)) // ç»å¯¹å€¼
 // #define MAX(x, y)     (((x) > (y)) ? (x) : (y))
 // #define MIN(x, y)     (((x) < (y)) ? (x) : (y))
-#define min(x, y) (((x) < (y)) ? (x) : (y))                                // ·µ»Ø½ÏĞ¡Öµ
-#define max(x, y) (((x) > (y)) ? (x) : (y))                                // ·µ»Ø½Ï´óÖµ
-#define CLAMP(x, lower, upper) (MIN(upper, MAX(x, lower)))                 // ÏŞ·ù£¨ÒÀÀµ MIN/MAX ¶¨Òå£©
-#define FLOAT_EQU(floatA, floatB) ((ABS((floatA) - (floatB))) < 0.000001f) // ¸¡µã½üËÆÏàµÈ±È½Ï
+#define min(x, y) (((x) < (y)) ? (x) : (y))                                // è¿”å›è¾ƒå°å€¼
+#define max(x, y) (((x) > (y)) ? (x) : (y))                                // è¿”å›è¾ƒå¤§å€¼
+#define CLAMP(x, lower, upper) (MIN(upper, MAX(x, lower)))                 // é™å¹…ï¼ˆä¾èµ– MIN/MAX å®šä¹‰ï¼‰
+#define FLOAT_EQU(floatA, floatB) ((ABS((floatA) - (floatB))) < 0.000001f) // æµ®ç‚¹è¿‘ä¼¼ç›¸ç­‰æ¯”è¾ƒ
 
-/* ========== ½Ç¶È¹éÒ»»¯ºê ========== */
+/* ========== è§’åº¦å½’ä¸€åŒ–å® ========== */
 #define wrap_pm_pi(theta)                         \
   theta = (theta > M_PI) ? theta - M_2PI : theta; \
   theta = (theta < -M_PI) ? theta + M_2PI : theta;
@@ -45,95 +45,86 @@
   theta = (theta > M_2PI) ? theta - M_2PI : theta; \
   theta = (theta < -M_2PI) ? theta + M_2PI : theta;
 
-/* ========== ÊıÑ§³£Á¿ ========== */
-#define M_PI (3.14159265359f)             // ¦Ğ
-#define M_2PI (6.28318530718f)            // 2¦Ğ
-#define M_2_PI (6.28318530718f)           // 2¦Ğ£¨Í¬Òåºê£©
-#define div_M_2PI (0.159154943092391467f) // 1/(2¦Ğ)
-#define SQRT3 (1.73205080757f)            // ¡Ì3
-#define SQRT3_BY_2 (0.86602540378f)       // ¡Ì3/2
-#define ONE_BY_SQRT3 (0.57735026919f)     // 1/¡Ì3
-#define TWO_BY_SQRT3 (1.15470053838f)     // 2/¡Ì3
+/* ========== æ•°å­¦å¸¸é‡ ========== */
+#define M_PI (3.14159265359f)             // Ï€
+#define M_2PI (6.28318530718f)            // 2Ï€
+#define M_2_PI (6.28318530718f)           // 2Ï€ï¼ˆåŒä¹‰å®ï¼‰
+#define div_M_2PI (0.159154943092391467f) // 1/(2Ï€)
+#define SQRT3 (1.73205080757f)            // âˆš3
+#define SQRT3_BY_2 (0.86602540378f)       // âˆš3/2
+#define ONE_BY_SQRT3 (0.57735026919f)     // 1/âˆš3
+#define TWO_BY_SQRT3 (1.15470053838f)     // 2/âˆš3
 
-/* ========== Î»²Ù×÷ºê ========== */
-#define setbit(x, y) (x |= (1 << y))     // ÖÃÎ»µÚ y Î»
-#define clrbit(x, y) (x &= ~(1 << y))    // ÇåÁãµÚ y Î»
-#define reversebit(x, y) (x ^= (1 << y)) // ·­×ªµÚ y Î»
-#define getbit(x, y) ((x) >> (y) & 1)    // ¶ÁÈ¡µÚ y Î»
+/* ========== ä½æ“ä½œå® ========== */
+#define setbit(x, y) (x |= (1 << y))     // ç½®ä½ç¬¬ y ä½
+#define clrbit(x, y) (x &= ~(1 << y))    // æ¸…é›¶ç¬¬ y ä½
+#define reversebit(x, y) (x ^= (1 << y)) // ç¿»è½¬ç¬¬ y ä½
+#define getbit(x, y) ((x) >> (y) & 1)    // è¯»å–ç¬¬ y ä½
 
 /**
 ***********************************************************************
-* @brief ÏµÍ³ÖÜÆÚ¿ØÖÆ½á¹¹Ìå
-* @note °üº¬Æô¶¯¼ÆÊıÆ÷¡¢²âÁ¿¼ÆÊıÆ÷µÈ¶à¸ö¼ÆÊıÆ÷£¬ÒÔ¼°¶ÔÓ¦µÄÖ´ĞĞÖÜÆÚºÍÆµÂÊ²ÎÊı
+* @brief ç³»ç»Ÿå‘¨æœŸæ§åˆ¶ç»“æ„ä½“
+* @note åŒ…å«å¯åŠ¨è®¡æ•°å™¨ã€æµ‹é‡è®¡æ•°å™¨ç­‰å¤šä¸ªè®¡æ•°å™¨ï¼Œä»¥åŠå¯¹åº”çš„æ‰§è¡Œå‘¨æœŸå’Œé¢‘ç‡å‚æ•°
 ***********************************************************************
 **/
 typedef struct
 {
-  // ¼ÆÊıÆ÷
+  // è®¡æ•°å™¨
   uint32_t sys_cnt;
-  uint32_t camera_y_pid_cnt;
-  uint32_t camera_x_pid_cnt;
-  uint32_t camera_y_pid_run_cnt;
-  uint32_t camera_x_pid_run_cnt;
 
-  // ÖÜÆÚ
+  // å‘¨æœŸ
   float sys_fs;
   float sys_ts;
-  float camera_y_pid_fs;
-  float camera_y_pid_ts;
-  float camera_x_pid_fs;
-  float camera_x_pid_ts;
 
-  float camera_y_pid_run_fs;
-  float camera_y_pid_run_ts;
-  float camera_x_pid_run_fs;
-  float camera_x_pid_run_ts;
-
-  // ¼ÆÊıÖµ
+  // è®¡æ•°å€¼
   uint32_t sys_ts_cnt_val;
-  uint32_t camera_y_pid_cnt_val;
-  uint32_t camera_x_pid_cnt_val;
-  uint32_t camera_y_pid_cnt_run_val;
-  uint32_t camera_x_pid_cnt_run_val;
-
 } period_t;
 
 /**
 ***********************************************************************
-* @brief PID ¿ØÖÆÆ÷²ÎÊı½á¹¹Ìå
+* @brief PID æ§åˆ¶å™¨å‚æ•°ç»“æ„ä½“
 * @note
 ***********************************************************************
 **/
 typedef struct
 {
-  volatile float kp; // ±ÈÀıÔöÒæ
-  volatile float ki; // »ı·ÖÔöÒæ
-  volatile float kd; // Î¢·ÖÔöÒæ
+  volatile float kp; // æ¯”ä¾‹å¢ç›Š
+  volatile float ki; // ç§¯åˆ†å¢ç›Š
+  volatile float kd; // å¾®åˆ†å¢ç›Š
 
-  volatile float kfp;     // Ç°À¡±ÈÀıÔöÒæ
-  volatile float kf_damp; // Ç°À¡×èÄáÏµÊı
+  volatile float kfp;     // å‰é¦ˆæ¯”ä¾‹å¢ç›Š
+  volatile float kf_damp; // å‰é¦ˆé˜»å°¼ç³»æ•°
 
-  volatile float p_term;           // ±ÈÀıÏîÊä³ö
-  volatile float i_term;           // »ı·ÖÏîÊä³ö
-  volatile uint8_t i_isolate_flag; // »ı·ÖÇå³ı¸ôÀë±êÖ¾£¨1:ÇåÁã²¢¸ôÀë»ı·Ö, 0:Õı³£»ı·Ö£©
-  volatile float d_term;           // Î¢·ÖÏîÊä³ö
+  volatile float p_term;           // æ¯”ä¾‹é¡¹è¾“å‡º
+  volatile float i_term;           // ç§¯åˆ†é¡¹è¾“å‡º
+  volatile uint8_t i_isolate_flag; // ç§¯åˆ†æ¸…é™¤éš”ç¦»æ ‡å¿—ï¼ˆ1:æ¸…é›¶å¹¶éš”ç¦»ç§¯åˆ†, 0:æ­£å¸¸ç§¯åˆ†ï¼‰
+  volatile float d_term;           // å¾®åˆ†é¡¹è¾“å‡º
 
-  volatile float i_term_max; // »ı·ÖÏîÉÏÏŞ
-  volatile float i_term_min; // »ı·ÖÏîÏÂÏŞ
+  volatile float i_term_max; // ç§¯åˆ†é¡¹ä¸Šé™
+  volatile float i_term_min; // ç§¯åˆ†é¡¹ä¸‹é™
 
-  volatile float ts; // ¿ØÖÆÆ÷²ÉÑùÖÜÆÚ
+  volatile float ts; // æ§åˆ¶å™¨é‡‡æ ·å‘¨æœŸ
 
-  volatile float ref_value;   // ²Î¿¼ÊäÈëÖµ
-  volatile float fback_value; // ·´À¡ÊäÈëÖµ
+  volatile float ref_value;   // å‚è€ƒè¾“å…¥å€¼
+  volatile float fback_value; // åé¦ˆè¾“å…¥å€¼
 
-  volatile float error;   // µ±Ç°Îó²î
-  volatile float pre_err; // ÉÏÒ»ÖÜÆÚÎó²î
+  volatile float error;   // å½“å‰è¯¯å·®
+  volatile float pre_err; // ä¸Šä¸€å‘¨æœŸè¯¯å·®
 
-  volatile float out_min; // Êä³öÏÂÏŞ
-  volatile float out_max; // Êä³öÉÏÏŞ
+  volatile float out_min; // è¾“å‡ºä¸‹é™
+  volatile float out_max; // è¾“å‡ºä¸Šé™
 
-  volatile float out_value; // ¿ØÖÆÆ÷Êä³öÖµ
+  volatile float out_value; // æ§åˆ¶å™¨è¾“å‡ºå€¼
 } pid_para_t;
+
+/* é’¢çƒä¸²çº§æ§åˆ¶å™¨ï¼šä½ç½®ç¯ç”Ÿæˆç›®æ ‡é€Ÿåº¦ï¼Œé€Ÿåº¦ç¯è·Ÿè¸ªè§†è§‰é€Ÿåº¦ã€‚ */
+typedef struct
+{
+  pid_para_t position;
+  pid_para_t velocity;
+  volatile float velocity_target_cm_s;
+  volatile float velocity_limit_cm_s;
+} ball_cascade_pid_t;
 
 typedef struct
 {
@@ -143,13 +134,13 @@ typedef struct
   float gimbal_pitch;
   float gimbal_yaw;
 
-  /* HÌâ£ºÊÓ¾õ¸ø³öµÄ¸ÖÇòÏà¶Ô O µãÎ»ÖÃ£¬µ¥Î» cm */
-  float ball_pos_cm;       // ¸ÖÇòµ±Ç°Î»ÖÃ£¬µ¥Î» cm£¬¾­¹ıÂË²¨ºóµÄÊÓ¾õÎ»ÖÃ
-  float ball_vel_cm_s;    // ¸ÖÇòËÙ¶È¹À¼Æ£¬µ¥Î» cm/s£¬ÓÉÏàÁÚÁ½´ÎÎ»ÖÃ²î·ÖµÃµ½
-  float ball_pos_raw_cm;   // ¸ÖÇòÔ­Ê¼Î»ÖÃ£¬µ¥Î» cm£¬ÊÓ¾õÊı¾İ»»ËãºóÎ´ÂË²¨µÄÖµ
-  float rod_angle_deg;    // °Ú¸Ëµ±Ç°Êµ¼Ê½Ç¶È£¬µ¥Î» deg£¬¶ÔÓ¦°Ú¸Ëµç»úµ±Ç°Î»ÖÃ
-  uint32_t car_run_time_ms;  // Ğ¡³µÔËĞĞÍ¬²½¼ÆÊ±£¬µ¥Î» ms£¬ÓÃÓÚÌâ4/5/6Ê±¼äÏÔÊ¾»òÅĞ¶¨
-  uint32_t task_run_time_ms; // µ±Ç°ÌâÄ¿ÈÎÎñÔËĞĞ¼ÆÊ±£¬µ¥Î» ms£¬ÓÃÓÚ×´Ì¬»ú³¬Ê±ºÍÏÔÊ¾
+  /* Hé¢˜ï¼šè§†è§‰ç»™å‡ºçš„é’¢çƒç›¸å¯¹ O ç‚¹ä½ç½®ï¼Œå•ä½ cm */
+  float ball_pos_cm;       // é’¢çƒå½“å‰ä½ç½®ï¼Œå•ä½ cmï¼Œç»è¿‡æ»¤æ³¢åçš„è§†è§‰ä½ç½®
+  float ball_vel_cm_s;    // é’¢çƒé€Ÿåº¦ä¼°è®¡ï¼Œå•ä½ cm/sï¼Œç”±ç›¸é‚»ä¸¤æ¬¡ä½ç½®å·®åˆ†å¾—åˆ°
+  float ball_pos_raw_cm;   // é’¢çƒåŸå§‹ä½ç½®ï¼Œå•ä½ cmï¼Œè§†è§‰æ•°æ®æ¢ç®—åæœªæ»¤æ³¢çš„å€¼
+  float rod_angle_deg;    // æ‘†æ†å½“å‰å®é™…è§’åº¦ï¼Œå•ä½ degï¼Œå¯¹åº”æ‘†æ†ç”µæœºå½“å‰ä½ç½®
+  uint32_t car_run_time_ms;  // å°è½¦è¿è¡ŒåŒæ­¥è®¡æ—¶ï¼Œå•ä½ msï¼Œç”¨äºé¢˜4/5/6æ—¶é—´æ˜¾ç¤ºæˆ–åˆ¤å®š
+  uint32_t task_run_time_ms; // å½“å‰é¢˜ç›®ä»»åŠ¡è¿è¡Œè®¡æ—¶ï¼Œå•ä½ msï¼Œç”¨äºçŠ¶æ€æœºè¶…æ—¶å’Œæ˜¾ç¤º
 
 } gimbal_value_t;
 
@@ -160,17 +151,17 @@ typedef struct
   float camera_x_set;
   float camera_y_set;
 
-  /* HÌâ£º¸ÖÇòÄ¿±êÎ»ÖÃºÍ°Ú¸ËÄ¿±ê½Ç¶È */
-  float ball_target_cm;       // ¸ÖÇòµ±Ç°¿ØÖÆÄ¿±êÎ»ÖÃ£¬µ¥Î» cm£¬±ÈÈç 0cm¡¢+5cm¡¢-5cm
-  float ball_task6_target_cm; // Ìâ6Ö¸¶¨µÄ¸ÖÇòÄ¿±êÎ»ÖÃ£¬µ¥Î» cm£¬Æô¶¯Ìâ6Ç°ÌîÈë
-  float rod_angle_cmd_deg;  // °Ú¸ËÄ¿±ê½Ç¶ÈÃüÁî£¬µ¥Î» deg£¬ÓÉ¸ÖÇòÎ»ÖÃ PID Êä³ö²¢ÏŞ·ùµÃµ½
-  float rod_chassis_ff_deg; // Ğ¡³µÔË¶¯Ê±µÄµ×ÅÌÇ°À¡²¹³¥½Ç¶È£¬µ¥Î» deg£¬ÏÈÕ¼Î»£¬Ä¬ÈÏÌî 0
+  /* Hé¢˜ï¼šé’¢çƒç›®æ ‡ä½ç½®å’Œæ‘†æ†ç›®æ ‡è§’åº¦ */
+  float ball_target_cm;       // é’¢çƒå½“å‰æ§åˆ¶ç›®æ ‡ä½ç½®ï¼Œå•ä½ cmï¼Œæ¯”å¦‚ 0cmã€+5cmã€-5cm
+  float ball_task6_target_cm; // é¢˜6æŒ‡å®šçš„é’¢çƒç›®æ ‡ä½ç½®ï¼Œå•ä½ cmï¼Œå¯åŠ¨é¢˜6å‰å¡«å…¥
+  float rod_angle_cmd_deg;  // æ‘†æ†ç›®æ ‡è§’åº¦å‘½ä»¤ï¼Œå•ä½ degï¼Œç”±é’¢çƒä½ç½® PID è¾“å‡ºå¹¶é™å¹…å¾—åˆ°
+  float rod_chassis_ff_deg; // å°è½¦è¿åŠ¨æ—¶çš„åº•ç›˜å‰é¦ˆè¡¥å¿è§’åº¦ï¼Œå•ä½ degï¼Œå…ˆå ä½ï¼Œé»˜è®¤å¡« 0
 } gimbal_ctrl_t;
 
 
 /**
 ***********************************************************************
-* @brief Ğ¡³µÔÆÌ¨Í¨ĞÅ½á¹¹Ìå
+* @brief å°è½¦äº‘å°é€šä¿¡ç»“æ„ä½“
 * @note
 ***********************************************************************
 **/
@@ -194,11 +185,8 @@ typedef struct
   period_t period;
   gimbal_value_t value;
   gimbal_ctrl_t ctrl;
-  pid_para_t camera_y_pid;
-  pid_para_t camera_x_pid;
-
-	pid_para_t camera_y_pid_run;
-	pid_para_t camera_x_pid_run;
+  ball_cascade_pid_t ball_static_pid;
+  ball_cascade_pid_t ball_running_pid;
 
 } sys_t;
 
@@ -207,33 +195,33 @@ extern sys_t sys;
 
 /**
 ***********************************************************************
-* @brief ÔÆÌ¨×´Ì¬»ú²ÎÊı½á¹¹Ìå
+* @brief äº‘å°çŠ¶æ€æœºå‚æ•°ç»“æ„ä½“
 * @note
 ***********************************************************************
 **/
-// ÔÆÌ¨×´Ì¬»ú×´Ì¬Ã¶¾Ù
+// äº‘å°çŠ¶æ€æœºçŠ¶æ€æšä¸¾
 typedef enum
 {
-  GIMBAL_IDLE = 0, // ¿ÕÏĞ£¬²»Æô¶¯°Ú¸Ë¿ØÖÆ
+  GIMBAL_IDLE = 0, // ç©ºé—²ï¼Œä¸å¯åŠ¨æ‘†æ†æ§åˆ¶
 
-  /* HÌâ_³µÔØÆ½ºâ¹öÇòÔË¶¯¿ØÖÆÏµÍ³£º±¾°Ú¸Ë¹¤³ÌÖ»¸ºÔğÌâ3µ½Ìâ6 */
-  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// Ìâ3£º¾²Ö¹Ê± O µã -> +5cm -> O µã -> -5cm
-  BALANCE_TASK4_CAR_TO_B_CENTER,    // Ìâ4£ºµ½ B µã£¬¸ÖÇòÎÈÔÚ O µã
-  BALANCE_TASK5_CAR_LAP_CENTER,     // Ìâ5£ºÒ»È¦£¬¸ÖÇòÎÈÔÚ O µã
-  BALANCE_TASK6_CAR_LAP_SETPOINT,   // Ìâ6£ºÒ»È¦£¬¸ÖÇòÎÈÔÚÈÎÒâÖ¸¶¨Î»ÖÃ
+  /* Hé¢˜_è½¦è½½å¹³è¡¡æ»šçƒè¿åŠ¨æ§åˆ¶ç³»ç»Ÿï¼šæœ¬æ‘†æ†å·¥ç¨‹åªè´Ÿè´£é¢˜3åˆ°é¢˜6 */
+  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// é¢˜3ï¼šé™æ­¢æ—¶ O ç‚¹ -> +5cm -> O ç‚¹ -> -5cm
+  BALANCE_TASK4_CAR_TO_B_CENTER,    // é¢˜4ï¼šåˆ° B ç‚¹ï¼Œé’¢çƒç¨³åœ¨ O ç‚¹
+  BALANCE_TASK5_CAR_LAP_CENTER,     // é¢˜5ï¼šä¸€åœˆï¼Œé’¢çƒç¨³åœ¨ O ç‚¹
+  BALANCE_TASK6_CAR_LAP_SETPOINT,   // é¢˜6ï¼šä¸€åœˆï¼Œé’¢çƒç¨³åœ¨ä»»æ„æŒ‡å®šä½ç½®
 } gimbal_state;
 
-// ÔÆÌ¨×´Ì¬»ú±äÁ¿
+// äº‘å°çŠ¶æ€æœºå˜é‡
 typedef struct
 {
-  gimbal_state state;          // µ±Ç°×´Ì¬
+  gimbal_state state;          // å½“å‰çŠ¶æ€
 
-  /* HÌâÈÎÎñÔËĞĞ²ÎÊı */
-  uint32_t elapsed_ms; // µ±Ç°×´Ì¬ÒÑÔËĞĞÊ±¼ä£¬µ¥Î» ms£¬Ã¿´ÎÆô¶¯ÈÎÎñÊ±ÇåÁã
-  uint32_t stable_ms;  // ¸ÖÇò½øÈëÔÊĞíÎó²î·¶Î§ºóµÄÎÈ¶¨¼ÆÊ±£¬µ¥Î» ms
-  uint8_t task3_phase; // Ìâ3½×¶Î±êÖ¾£¬0 È¥ +5cm£¬1 »Ø O µã¼õËÙ£¬2 ÔÙÈ¥ -5cm
-  uint8_t finished;     // µ±Ç°ÌâÄ¿ÊÇ·ñÍê³É£¬1 ±íÊ¾×´Ì¬»úÒÑ´ïµ½½áÊøÌõ¼ş
-  float task3_target_cmd_cm; // Ìâ3¸ø PID µÄÆ½»¬Ä¿±ê£¬±ÜÃâ +5cm µ½ O µã¡¢O µãµ½ -5cm Ë²¼äÌø±äµ¼ÖÂÃÍÀ­
+  /* Hé¢˜ä»»åŠ¡è¿è¡Œå‚æ•° */
+  uint32_t elapsed_ms; // å½“å‰çŠ¶æ€å·²è¿è¡Œæ—¶é—´ï¼Œå•ä½ msï¼Œæ¯æ¬¡å¯åŠ¨ä»»åŠ¡æ—¶æ¸…é›¶
+  uint32_t stable_ms;  // é’¢çƒè¿›å…¥å…è®¸è¯¯å·®èŒƒå›´åçš„ç¨³å®šè®¡æ—¶ï¼Œå•ä½ ms
+  uint8_t task3_phase; // é¢˜3é˜¶æ®µæ ‡å¿—ï¼Œ0 å» +5cmï¼Œ1 å› O ç‚¹å‡é€Ÿï¼Œ2 å†å» -5cm
+  uint8_t finished;     // å½“å‰é¢˜ç›®æ˜¯å¦å®Œæˆï¼Œ1 è¡¨ç¤ºçŠ¶æ€æœºå·²è¾¾åˆ°ç»“æŸæ¡ä»¶
+  float task3_target_cmd_cm; // é¢˜3ç»™ PID çš„å¹³æ»‘ç›®æ ‡ï¼Œé¿å… +5cm åˆ° O ç‚¹ã€O ç‚¹åˆ° -5cm ç¬é—´è·³å˜å¯¼è‡´çŒ›æ‹‰
 } gimbal_sm_t;
 
 extern gimbal_sm_t gimbal_sm_obj;
@@ -241,55 +229,55 @@ extern volatile uint32_t target_lost_cnt;
 
 /**
 ***********************************************************************
-* @brief °´¼ü²ÎÊı½á¹¹Ìå
+* @brief æŒ‰é”®å‚æ•°ç»“æ„ä½“
 * @note
 ***********************************************************************
 **/
-// °´¼ü
+// æŒ‰é”®
 typedef enum
 {
-  KEY_EVENT_NONE = 0, // Ã»ÓĞÊÂ¼ş
-  KEY_EVENT_SHORT,    // ¶Ì°´£¨ÏÂ½µÑØ´¥·¢£©
-  // KEY_EVENT_LONG,    // ³¤°´£¬ÔİÊ±²»×ö£¬ÏÈÁôÎ»ÖÃ
+  KEY_EVENT_NONE = 0, // æ²¡æœ‰äº‹ä»¶
+  KEY_EVENT_SHORT,    // çŸ­æŒ‰ï¼ˆä¸‹é™æ²¿è§¦å‘ï¼‰
+  // KEY_EVENT_LONG,    // é•¿æŒ‰ï¼Œæš‚æ—¶ä¸åšï¼Œå…ˆç•™ä½ç½®
 } key_event_t;
 
 typedef struct
 {
-  GPIO_TypeDef *port; // ÄÄ¸ö GPIO ¶Ë¿Ú
-  uint16_t pin;       // ÄÄÒ»¸ù pin
-  // uint8_t last_level; // ÉÏÒ»´Î¶Áµ½µÄµçÆ½£¬ÓÃÀ´ÅĞÏÂ½µÑØ
+  GPIO_TypeDef *port; // å“ªä¸ª GPIO ç«¯å£
+  uint16_t pin;       // å“ªä¸€æ ¹ pin
+  // uint8_t last_level; // ä¸Šä¸€æ¬¡è¯»åˆ°çš„ç”µå¹³ï¼Œç”¨æ¥åˆ¤ä¸‹é™æ²¿
 
-  uint8_t filter_cnt;   // Ïû¶¶¼ÆÊı
-  uint8_t press_flag;   // ÒÑ¾­È·ÈÏ°´ÏÂ£¬·ÀÖ¹³¤°´ÖØ¸´´¥·¢
+  uint8_t filter_cnt;   // æ¶ˆæŠ–è®¡æ•°
+  uint8_t press_flag;   // å·²ç»ç¡®è®¤æŒ‰ä¸‹ï¼Œé˜²æ­¢é•¿æŒ‰é‡å¤è§¦å‘
 } key_t;
 
-extern key_t key_menu;  // PA4£¬ÓÃÀ´ÇĞ²Ëµ¥Ïî
-extern key_t key_enter; // PC3£¬ÓÃÀ´È·ÈÏ/ÍË³ö
+extern key_t key_menu;  // PA4ï¼Œç”¨æ¥åˆ‡èœå•é¡¹
+extern key_t key_enter; // PC3ï¼Œç”¨æ¥ç¡®è®¤/é€€å‡º
 
 
 /**
 ***********************************************************************
-* @brief ²Ëµ¥²ÎÊı½á¹¹Ìå
+* @brief èœå•å‚æ•°ç»“æ„ä½“
 * @note
 ***********************************************************************
 **/
-// ²Ëµ¥
+// èœå•
 typedef enum
 {
-  MENU_ITEM_STANDBY = 0,   // ´ı»ú£¨¶ÔÓ¦»ù´¡1£©
+  MENU_ITEM_STANDBY = 0,   // å¾…æœºï¼ˆå¯¹åº”åŸºç¡€1ï¼‰
 
-  MENU_ITEM_TASK3_STATIC_PM5,  // Ìâ3
-  MENU_ITEM_TASK4_AB_CENTER,   // Ìâ4£ºA µ½ B£¬¸ÖÇòÎÈÔÚ O µã
-  MENU_ITEM_TASK5_LAP_CENTER,  // Ìâ5£ºÒ»È¦£¬¸ÖÇòÎÈÔÚ O µã
-  MENU_ITEM_TASK6_LAP_SETPOINT,// Ìâ6£ºÒ»È¦£¬¸ÖÇòÎÈÔÚÖ¸¶¨Î»ÖÃ
+  MENU_ITEM_TASK3_STATIC_PM5,  // é¢˜3
+  MENU_ITEM_TASK4_AB_CENTER,   // é¢˜4ï¼šA åˆ° Bï¼Œé’¢çƒç¨³åœ¨ O ç‚¹
+  MENU_ITEM_TASK5_LAP_CENTER,  // é¢˜5ï¼šä¸€åœˆï¼Œé’¢çƒç¨³åœ¨ O ç‚¹
+  MENU_ITEM_TASK6_LAP_SETPOINT,// é¢˜6ï¼šä¸€åœˆï¼Œé’¢çƒç¨³åœ¨æŒ‡å®šä½ç½®
 
-  MENU_ITEM_COUNT          // Ñ­»·²Ëµ¥×´Ì¬
+  MENU_ITEM_COUNT          // å¾ªç¯èœå•çŠ¶æ€
 } menu_item_t;
 
 typedef struct
 {
-  menu_item_t cur_item; // µ±Ç°¹â±êÍ£ÔÚÄÄÏî
-  uint8_t in_running;   // 0 = ²Ëµ¥Ñ¡ÔñÌ¬, 1 = ÒÑ½øÈëÄ³¹¦ÄÜÔËĞĞÌ¬
+  menu_item_t cur_item; // å½“å‰å…‰æ ‡åœåœ¨å“ªé¡¹
+  uint8_t in_running;   // 0 = èœå•é€‰æ‹©æ€, 1 = å·²è¿›å…¥æŸåŠŸèƒ½è¿è¡Œæ€
 } menu_t;
 
 
@@ -297,13 +285,13 @@ extern menu_t menu;
 extern car_speak_rx_t car_speak_rx;
 
 
-/* ========== º¯ÊıÉùÃ÷ ========== */
+/* ========== å‡½æ•°å£°æ˜ ========== */
 /*** gimbal_ctrl.c ***/
 // uint8_t key_scan(void);
 // uint8_t target_found(void);
 // void gimbal_sm(void);
 void gimbal_task_state(void);
-extern volatile uint8_t balance_state_machine_enable; // Keil µ÷ÊÔÓÃ£ºÖÃ 1 ºó²ÅÔÊĞíÌâ3/4/5/6×´Ì¬»úÔËĞĞ
+extern volatile uint8_t balance_state_machine_enable; // Keil è°ƒè¯•ç”¨ï¼šç½® 1 åæ‰å…è®¸é¢˜3/4/5/6çŠ¶æ€æœºè¿è¡Œ
 void balance_task_start(gimbal_state state);
 
 /*** key.c ***/
@@ -325,9 +313,9 @@ void balance_init(void);
 void ball_balance_static_ctrl(sys_t *sys, float target_cm);
 void ball_balance_running_ctrl(sys_t *sys, float target_cm);
 void ball_balance_set_chassis_ff(float ff_deg);
-extern volatile uint8_t rod_cmd_limit_test_enable; // Keil µ÷ÊÔÓÃ£ºÖÃ 1 ºó½øÈë×´Ì¬·´À¡ÏŞ·ùµ÷ÊÔ
-extern volatile uint32_t rod_pid_test_run_cnt;  // Keil µ÷ÊÔÓÃ£º×´Ì¬·´À¡ÏŞ·ùµ÷ÊÔ·ÖÖ§ÔËĞĞ¼ÆÊı
-/* Ìâ3 Keil Watch ¼¯ÖĞµ÷ÊÔ±äÁ¿£º¶¨ÒåÔÚ gimbal_ctrl.c£¬Watch ÀïËÑ dbg_task3_ */
+extern volatile uint8_t rod_cmd_limit_test_enable; // Keil è°ƒè¯•ç”¨ï¼šç½® 1 åè¿›å…¥çŠ¶æ€åé¦ˆé™å¹…è°ƒè¯•
+extern volatile uint32_t rod_pid_test_run_cnt;  // Keil è°ƒè¯•ç”¨ï¼šçŠ¶æ€åé¦ˆé™å¹…è°ƒè¯•åˆ†æ”¯è¿è¡Œè®¡æ•°
+/* é¢˜3 Keil Watch é›†ä¸­è°ƒè¯•å˜é‡ï¼šå®šä¹‰åœ¨ gimbal_ctrl.cï¼ŒWatch é‡Œæœ dbg_task3_ */
 extern volatile float dbg_task3_plus_reached_cm;
 extern volatile float dbg_task3_plus_ctrl_target_cm;
 extern volatile float dbg_task3_center_margin_cm;

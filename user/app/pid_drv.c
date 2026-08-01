@@ -3,12 +3,12 @@
 /**
 ***********************************************************************
 * @brief:      pid_para_init()
-* @param[in]:  pid_config  Ö¸Ïòpid_para_t½á¹¹ÌåµÄÖ¸Õë
-* @param[in]:  kp  ±ÈÀıÏµÊı
-* @param[in]:  ki  »ı·ÖÏµÊı
-* @param[in]:  kd  Î¢·ÖÏµÊı
+* @param[in]:  pid_config  æŒ‡å‘pid_para_tç»“æ„ä½“çš„æŒ‡é’ˆ
+* @param[in]:  kp  æ¯”ä¾‹ç³»æ•°
+* @param[in]:  ki  ç§¯åˆ†ç³»æ•°
+* @param[in]:  kd  å¾®åˆ†ç³»æ•°
 * @retval:     void
-* @details:    ³õÊ¼»¯PID²ÎÊı½á¹¹Ìå
+* @details:    åˆå§‹åŒ–PIDå‚æ•°ç»“æ„ä½“
 ***********************************************************************
 **/
 void pid_para_init(pid_para_t *pid_config)
@@ -30,13 +30,13 @@ void pid_para_init(pid_para_t *pid_config)
 /**
 ***********************************************************************
 * @brief:      pid_limit_init
-* @param[in]:  pid_config  Ö¸Ïòpid_para_t½á¹¹ÌåµÄÖ¸Õë
-* @param[in]:  i_term_max  »ı·ÖÏî×î´óÖµ
-* @param[in]:  i_term_min  »ı·ÖÏî×îĞ¡Öµ
-* @param[in]:  out_max  Êä³ö×î´óÖµ
-* @param[in]:  out_min  Êä³ö×îĞ¡Öµ
+* @param[in]:  pid_config  æŒ‡å‘pid_para_tç»“æ„ä½“çš„æŒ‡é’ˆ
+* @param[in]:  i_term_max  ç§¯åˆ†é¡¹æœ€å¤§å€¼
+* @param[in]:  i_term_min  ç§¯åˆ†é¡¹æœ€å°å€¼
+* @param[in]:  out_max  è¾“å‡ºæœ€å¤§å€¼
+* @param[in]:  out_min  è¾“å‡ºæœ€å°å€¼
 * @retval:     void
-* @details:    ÉèÖÃPID»ı·ÖÏîºÍÊä³öÏîµÄÏŞÖÆ·¶Î§
+* @details:    è®¾ç½®PIDç§¯åˆ†é¡¹å’Œè¾“å‡ºé¡¹çš„é™åˆ¶èŒƒå›´
 ***********************************************************************
 **/
 void pid_limit_init(pid_para_t *pid_config, float i_term_max, float i_term_min,float out_max, float out_min)
@@ -49,9 +49,9 @@ void pid_limit_init(pid_para_t *pid_config, float i_term_max, float i_term_min,f
 /**
 ***********************************************************************
 * @brief:      pid_clean
-* @param[in]:  pid_clean  Ö¸Ïòpid_para_t½á¹¹ÌåµÄÖ¸Õë
+* @param[in]:  pid_clean  æŒ‡å‘pid_para_tç»“æ„ä½“çš„æŒ‡é’ˆ
 * @retval:     void
-* @details:    Çå³ıPID¿ØÖÆÆ÷µÄÀúÊ·×´Ì¬
+* @details:    æ¸…é™¤PIDæ§åˆ¶å™¨çš„å†å²çŠ¶æ€
 ***********************************************************************
 **/
 void pid_clean(pid_para_t *pid_clean)
@@ -69,12 +69,12 @@ void pid_clean(pid_para_t *pid_clean)
 /**
 ***********************************************************************
 * @brief:      pid_reset()
-* @param[in]:  pid_config  Ö¸Ïòpid_para_t½á¹¹ÌåµÄÖ¸Õë
-* @param[in]:  kp  ±ÈÀıÏµÊı
-* @param[in]:  ki  »ı·ÖÏµÊı
-* @param[in]:  kd  Î¢·ÖÏµÊı
+* @param[in]:  pid_config  æŒ‡å‘pid_para_tç»“æ„ä½“çš„æŒ‡é’ˆ
+* @param[in]:  kp  æ¯”ä¾‹ç³»æ•°
+* @param[in]:  ki  ç§¯åˆ†ç³»æ•°
+* @param[in]:  kd  å¾®åˆ†ç³»æ•°
 * @retval:     void
-* @details:    ĞŞ¸Äpid²ÎÊı
+* @details:    ä¿®æ”¹pidå‚æ•°
 ***********************************************************************
 **/
 void pid_reset(pid_para_t *pid_config, float kp, float ki, float kd)
@@ -96,7 +96,7 @@ float parallel_pid_ctrl(pid_para_t *pid, float ref_value, float fdback_value)
     pid->d_term = pid->kd * (pid->error - pid->pre_err);
     pid->pre_err = pid->error;
 	
-    // ¶¯Ì¬»ı·ÖÏŞ·ù
+    // åŠ¨æ€ç§¯åˆ†é™å¹…
     pid->i_term_max = max(pid->out_max - pid->p_term, 0.0f);
     pid->i_term_min = min(pid->out_min - pid->p_term, 0.0f);
 
@@ -114,7 +114,7 @@ float parallel_pid_ctrl(pid_para_t *pid, float ref_value, float fdback_value)
             pid->i_term = pid->i_term_min;
     }
 
-    pid->out_value = pid->p_term + pid->i_term + pid->d_term; 	// ²¢¼¶pid
+    pid->out_value = pid->p_term + pid->i_term + pid->d_term; 	// å¹¶çº§pid
 
     if (pid->out_value > pid->out_max)
         pid->out_value = pid->out_max;
@@ -172,7 +172,7 @@ float parallel_pid_ctrl(pid_para_t *pid, float ref_value, float fdback_value)
 	
 // 	pid->p_term = pid->kp * err_kf;
 
-//     // ¶¯Ì¬»ı·ÖÏŞ·ù
+//     // åŠ¨æ€ç§¯åˆ†é™å¹…
 //     pid->i_term_max = max(pid->out_max - pid->p_term, 0.0f);
 //     pid->i_term_min = min(pid->out_min - pid->p_term, 0.0f);
 

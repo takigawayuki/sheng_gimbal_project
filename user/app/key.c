@@ -1,6 +1,6 @@
 #include "common.h"
 
-#define KEY_SCAN_FILTER_CNT  20   // Èç¹û key_update Ã¿ 1ms µ÷Ò»´Î£¬¾ÍÊÇÔ¼ 20ms Ïû¶¶
+#define KEY_SCAN_FILTER_CNT  20   // å¦‚æœ key_update æ¯ 1ms è°ƒä¸€æ¬¡ï¼Œå°±æ˜¯çº¦ 20ms æ¶ˆæŠ–
 
 key_t key_menu;
 key_t key_enter;
@@ -8,11 +8,11 @@ key_t key_enter;
 void key_init(void)
 {
     key_menu.port  = GPIOA;
-    key_menu.pin   = GPIO_PIN_4;    // ²Ëµ¥°´¼ü
-    // key_menu.last_level = 1;        // ³õÊ¼ÈÏÎªÊÇËÉ¿ª£¨¸ßµçÆ½£©
+    key_menu.pin   = GPIO_PIN_4;    // èœå•æŒ‰é”®
+    // key_menu.last_level = 1;        // åˆå§‹è®¤ä¸ºæ˜¯æ¾å¼€ï¼ˆé«˜ç”µå¹³ï¼‰
 
     key_enter.port = GPIOC;
-    key_enter.pin  = GPIO_PIN_3;    // ¹¦ÄÜÔËĞĞÍË³ö°´¼ü
+    key_enter.pin  = GPIO_PIN_3;    // åŠŸèƒ½è¿è¡Œé€€å‡ºæŒ‰é”®
     // key_enter.last_level = 1;
 
     key_menu.filter_cnt = 0;
@@ -29,7 +29,7 @@ key_event_t key_update(key_t *k)
 
     // key_event_t ev = KEY_EVENT_NONE;
 
-    // if (k->last_level == 1 && cur == 0)   // ÏÂ½µÑØ = ¸Õ°´ÏÂ
+    // if (k->last_level == 1 && cur == 0)   // ä¸‹é™æ²¿ = åˆšæŒ‰ä¸‹
     // {
     //     ev = KEY_EVENT_SHORT;
     // }
@@ -40,7 +40,7 @@ key_event_t key_update(key_t *k)
     key_event_t ev = KEY_EVENT_NONE;
     uint8_t cur = HAL_GPIO_ReadPin(k->port, k->pin);
 
-    if (cur == GPIO_PIN_RESET)   // ÉÏÀ­ÊäÈë£¬µÍµçÆ½±íÊ¾°´ÏÂ
+    if (cur == GPIO_PIN_RESET)   // ä¸Šæ‹‰è¾“å…¥ï¼Œä½ç”µå¹³è¡¨ç¤ºæŒ‰ä¸‹
     {
         if (k->filter_cnt < KEY_SCAN_FILTER_CNT)
         {

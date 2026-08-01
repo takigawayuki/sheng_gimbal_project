@@ -25,7 +25,7 @@ static gimbal_state menu_to_balance_state(menu_item_t item)
 
 void menu_init(void)
 {
-    menu.cur_item = MENU_ITEM_TASK3_STATIC_PM5; // µ±Ç°ÏÈµ÷Ìâ3£¬ÉÏµçÄ¬ÈÏÍ£ÔÚÌâ3²Ëµ¥Ïî
+    menu.cur_item = MENU_ITEM_TASK3_STATIC_PM5; // å½“å‰å…ˆè°ƒé¢˜3ï¼Œä¸Šç”µé»˜è®¤åœåœ¨é¢˜3èœå•é¡¹
     menu.in_running = 0;
 }
 
@@ -33,7 +33,7 @@ void menu_update(key_event_t ev_menu, key_event_t ev_enter)
 {
     if (menu.in_running == 0)
     {
-        // ===== ²Ëµ¥Ñ¡ÔñÌ¬ =====
+        // ===== èœå•é€‰æ‹©æ€ =====
         if (ev_menu == KEY_EVENT_SHORT)
         {
             menu.cur_item = (menu.cur_item + 1) % MENU_ITEM_COUNT;
@@ -46,12 +46,12 @@ void menu_update(key_event_t ev_menu, key_event_t ev_enter)
     }
     else
     {
-        // ===== ÔËĞĞÌ¬ =====
+        // ===== è¿è¡Œæ€ =====
         if (ev_enter == KEY_EVENT_SHORT)
         {
             menu.in_running = 0;
             balance_task_start(GIMBAL_IDLE);
         }
-        // PA4 ²»ÏìÓ¦
+        // PA4 ä¸å“åº”
     }
 }
