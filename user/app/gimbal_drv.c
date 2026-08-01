@@ -51,7 +51,7 @@ void period_init(void)
  * sys.ball_static_pid / sys.ball_running_pid 中分别包含位置环和速度环参数。
  * 最终命令 = ROD_CENTER_DEG + 状态反馈输出，然后经过 ROD_MIN_DEG/ROD_MAX_DEG 限幅。
  */
-volatile uint8_t rod_cmd_limit_test_enable = 1U;
+volatile uint8_t rod_cmd_limit_test_enable = 0U;
 volatile uint32_t rod_pid_test_run_cnt = 0U;
 
 /* 运动题前馈补偿角度的安全限幅。
