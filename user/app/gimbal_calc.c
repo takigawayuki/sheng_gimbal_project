@@ -24,6 +24,13 @@
  */
 #define BALL_POS_FILTER_ALPHA          1.0f
 
+/* 钢球位置标定偏置，单位 cm。
+ * 当视觉零点与物理 O 点不一致时，用这个偏置把视觉读数校准到物理坐标。
+ * 例如：球在物理 O 点时视觉读到 -0.75cm，则 BIAS = +0.75，校准后 = 原始 + BIAS = 0cm。
+ * 正值 = 视觉读数偏负时需要补正；负值 = 视觉读数偏正时需要拉回。
+ */
+#define BALL_POS_CALIBRATION_BIAS_CM   -1.0f
+
 /* 更新钢球位置数据。
  * ball_pos_cm 是视觉给出的钢球位置偏差，正负方向需要和摆杆控制方向配合实测确认。
  * 输出结果会写入：
@@ -36,6 +43,7 @@ void ball_data_update(float ball_pos_cm)
     static uint8_t initialized = 0U;     // 第一次收到视觉数据标志，用于避免滤波初值从 0 慢慢爬过去
     static float last_pos_cm = 0.0f;     // 上一次滤波后的钢球位置，用于计算速度
     float scaled_pos = ball_pos_cm * BALL_VISION_SCALE_CM_PER_UNIT; // 把视觉单位换算成 cm
+    scaled_pos += BALL_POS_CALIBRATION_BIAS_CM;                    // 标定偏置，校准视觉零点到物理 O 点
 
     /* 保存原始位置，便于调试时对比滤波前后的数据。 */
     sys.value.ball_pos_raw_cm = scaled_pos;

@@ -81,6 +81,7 @@ static void ball_cascade_reset(ball_cascade_pid_t *cascade)
     ball_pid_reset(&cascade->position);
     ball_pid_reset(&cascade->velocity);
     cascade->velocity_target_cm_s = 0.0f;
+    cascade->velocity_filtered_cm_s = 0.0f;
 }
 
 static float ball_position_loop_calc(ball_cascade_pid_t *cascade,
@@ -110,17 +111,17 @@ static float ball_position_loop_calc(ball_cascade_pid_t *cascade,
 static float ball_velocity_loop_calc(ball_cascade_pid_t *cascade, float vel_cm_s)
 {
     pid_para_t *pid = &cascade->velocity;
-    static float vel_filter_cm_s = 0.0f;
     float alpha;
 
     /* 速度内环：目标速度来自位置外环，反馈量使用视觉给出的 ball_vel_cm_s。
      * kp/ki/kd 只作用于速度误差及其积分、微分。
      */
-    alpha = balance_clampf(dbg_task3_vel_filter_alpha, 0.0f, 1.0f);
-    vel_filter_cm_s = vel_filter_cm_s * (1.0f - alpha) + vel_cm_s * alpha;
-    dbg_task3_vel_used_cm_s = vel_filter_cm_s;
+    alpha = balance_clampf(cascade->velocity_filter_alpha, 0.0f, 1.0f);
+    cascade->velocity_filtered_cm_s =
+        cascade->velocity_filtered_cm_s * (1.0f - alpha) + vel_cm_s * alpha;
+    dbg_task3_vel_used_cm_s = cascade->velocity_filtered_cm_s;
     pid->ref_value = cascade->velocity_target_cm_s;
-    pid->fback_value = vel_filter_cm_s;
+    pid->fback_value = cascade->velocity_filtered_cm_s;
     pid->error = pid->ref_value - pid->fback_value;
 
     pid->p_term = pid->kp * pid->error;
@@ -235,13 +236,14 @@ void balance_init(void)
 
     sys.ball_static_pid.velocity.kp = 0.8f;
     sys.ball_static_pid.velocity.ki = 0.0f;
-    sys.ball_static_pid.velocity.kd = 50.0f;
+    sys.ball_static_pid.velocity.kd = 1.0f;
     sys.ball_static_pid.velocity.ts = 0.001f;
     sys.ball_static_pid.velocity.out_min = -20000.0f;
     sys.ball_static_pid.velocity.out_max = 20000.0f;
     sys.ball_static_pid.velocity.i_term_min = -BALL_I_TERM_LIMIT_DEG;
     sys.ball_static_pid.velocity.i_term_max = BALL_I_TERM_LIMIT_DEG;
     sys.ball_static_pid.velocity_limit_cm_s = BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_static_pid.velocity_filter_alpha = 0.5f;
 
     sys.ball_running_pid.position.kp = 2.0f;
     sys.ball_running_pid.position.ki = 0.0f;
@@ -261,6 +263,7 @@ void balance_init(void)
     sys.ball_running_pid.velocity.i_term_min = -BALL_I_TERM_LIMIT_DEG;
     sys.ball_running_pid.velocity.i_term_max = BALL_I_TERM_LIMIT_DEG;
     sys.ball_running_pid.velocity_limit_cm_s = BALL_POSITION_TARGET_SPEED_MAX;
+    sys.ball_running_pid.velocity_filter_alpha = 0.01f;
 
     pitchmotor.setSpeed = ROD_DEFAULT_SPEED_DPS;
     pitchmotor.setAcc = ROD_DEFAULT_ACC;
@@ -282,89 +285,15 @@ void ball_balance_stop(void)
 void ball_balance_static_ctrl(sys_t *sys_obj, float target_cm)
 {
     float rod_cmd;
-    float vel_brake_deg;
-    float brake_vel_cm_s;
 
     sys_obj->ctrl.ball_target_cm = target_cm;
-    dbg_task3_ff_applied_deg = 0.0f;
 
-    /* 题3第一阶段开环测试：0->+5cm 直接给固定摆杆角度，不运行 PID。
-     * 用来把“送到 +5”和“PID 从 +5 到 -5 停住”两个问题拆开。
-     */
-    if ((gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS) &&
-        (gimbal_sm_obj.task3_phase == 0U) &&
-        (dbg_task3_plus_openloop_enable != 0U))
-    {
-        dbg_task3_ff_applied_deg = dbg_task3_plus_openloop_deg;
-        rod_cmd = ROD_CENTER_DEG + dbg_task3_plus_openloop_deg;
-        ball_balance_apply_cmd(sys_obj, rod_cmd);
-        return;
-    }
-
-    dbg_task3_minus_hold_active = 0U;
-    dbg_task3_minus_overrun_ff_applied_deg = 0.0f;
-
-    /* 题3主策略：位置误差 + 视觉速度阻尼 -> 摆杆目标角度。
-     * 这里只保留很薄的一层分段固定补偿，便于 Keil Watch 现场调试。
-     */
+    /* 位置外环生成目标速度，速度内环生成摆杆角度。 */
     ball_position_loop_calc(&sys_obj->ball_static_pid,
                             target_cm,
                             sys_obj->value.ball_pos_cm);
     ball_velocity_loop_calc(&sys_obj->ball_static_pid,
                             sys_obj->value.ball_vel_cm_s);
-
-    if (gimbal_sm_obj.state == BALANCE_TASK3_STATIC_PLUS_TO_MINUS)
-    {
-        if (gimbal_sm_obj.task3_phase == 0U)
-        {
-            dbg_task3_ff_applied_deg = dbg_task3_plus_ff_deg;
-        }
-        else if (gimbal_sm_obj.task3_phase == 2U)
-        {
-            dbg_task3_ff_applied_deg = dbg_task3_minus_ff_deg;
-
-
-            /* 第三阶段从 +5cm 拉到 -5cm 时，额外按球速反向刹车。
-             * 这层只负责吸收大幅往返的能量，不改变位置目标。
-             */
-            if (fabsf(dbg_task3_vel_used_cm_s) <= dbg_task3_minus_vel_brake_dead_cm_s)
-            {
-                brake_vel_cm_s = 0.0f;
-            }
-            else if (dbg_task3_vel_used_cm_s > 0.0f)
-            {
-                brake_vel_cm_s = dbg_task3_vel_used_cm_s - dbg_task3_minus_vel_brake_dead_cm_s;
-            }
-            else
-            {
-                brake_vel_cm_s = dbg_task3_vel_used_cm_s + dbg_task3_minus_vel_brake_dead_cm_s;
-            }
-
-            vel_brake_deg = -dbg_task3_minus_vel_brake_kd * brake_vel_cm_s;
-            vel_brake_deg = balance_clampf(vel_brake_deg,
-                                           -dbg_task3_minus_vel_brake_limit_deg,
-                                            dbg_task3_minus_vel_brake_limit_deg);
-            dbg_task3_minus_vel_brake_deg = vel_brake_deg;
-            dbg_task3_ff_applied_deg += vel_brake_deg;
-
-            if ((sys_obj->value.ball_pos_cm <= dbg_task3_minus_overrun_start_cm) &&
-                (dbg_task3_vel_used_cm_s <= dbg_task3_minus_overrun_vel_cm_s))
-            {
-                dbg_task3_minus_overrun_ff_applied_deg = dbg_task3_minus_overrun_ff_deg;
-                dbg_task3_ff_applied_deg += dbg_task3_minus_overrun_ff_applied_deg;
-            }
-            else
-            {
-                dbg_task3_minus_overrun_ff_applied_deg = 0.0f;
-            }
-        }
-        else
-        {
-            dbg_task3_minus_vel_brake_deg = 0.0f;
-        }
-
-        sys_obj->ball_static_pid.velocity.out_value += dbg_task3_ff_applied_deg;
-    }
 
     rod_cmd = ROD_CENTER_DEG + sys_obj->ball_static_pid.velocity.out_value;
     ball_balance_apply_cmd(sys_obj, rod_cmd);

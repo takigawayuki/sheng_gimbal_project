@@ -2,7 +2,7 @@
 #include "math.h"
 
 sys_t sys;
-gimbal_sm_t gimbal_sm_obj = {GIMBAL_IDLE, 0, 0, 0, 0, 0.0f};
+gimbal_sm_t gimbal_sm_obj = {.state = GIMBAL_IDLE};
 
 volatile uint32_t target_lost_cnt = 0;
 volatile uint8_t balance_state_machine_enable = 0U; // 默认不自动运行题号状态机，只接收视觉，菜单确认后启动题3
@@ -21,46 +21,36 @@ extern float yaw_pos;
 /* 钢球认为稳定的误差范围。题目要求误差绝对值不大于 1cm，所以这里先用 1cm。 */
 #define BALL_STABLE_ERR_CM       1.0f
 
-/* 题3的目标路径：O 点 -> +5cm -> O 点 -> -5cm。 */
-#define BALL_TASK3_PLUS_CM       5.0f
-#define BALL_TASK3_MINUS_CM     -5.0f
-/* 题3把 +5cm 和 O 点都当过程点，不当长时间稳定点。
- * 进入 +5cm 附近后先回 O 点减速，经过 O 点后再继续去 -5cm。
+/* ================= 题3时间轨迹参数 =================
+ * 总移动时间会按路程比例分配：0->+5 使用 1/3，+5->-5 使用 2/3。
+ * 默认总时间 = 3300 + 300 + 500 = 4100ms，小于题目要求的 5000ms。
  */
-#define BALL_TASK3_PLUS_HOLD_MS  30U
+#define BALL_TASK3_PLUS_CM       7.0f
+#define TASK3_PLUS5_BIAS_CM      0.0f       // 偏置
+#define BALL_TASK3_MINUS_CM     -5.65f
+#define TASK3_TRAJECTORY_MOVE_TIME_MS       3300U
+#define TASK3_PLUS5_WAIT_TIME_MS             300U
+#define TASK3_MINUS5_WAIT_TIME_MS            500U
+#define TASK3_REQUIRED_TOTAL_LIMIT_MS        5000U
+#define TASK3_MOVE_TO_PLUS5_TIME_MS          (TASK3_TRAJECTORY_MOVE_TIME_MS / 3U)
+#define TASK3_MOVE_TO_MINUS5_TIME_MS         (TASK3_TRAJECTORY_MOVE_TIME_MS - TASK3_MOVE_TO_PLUS5_TIME_MS)
+#define TASK3_CONFIGURED_TOTAL_TIME_MS       (TASK3_TRAJECTORY_MOVE_TIME_MS + TASK3_PLUS5_WAIT_TIME_MS + TASK3_MINUS5_WAIT_TIME_MS)
 
-/* ================= 题3 Keil Watch 集中调试变量 =================
- * 后续调题3时，Keil Watch 里直接搜 dbg_task3_。
- * 这些变量不用重编就能改，方便现场只改一个区域，不用在多个文件里找宏。
- */
-volatile float dbg_task3_plus_reached_cm = 5.5f;       // +5cm 第一段到达判定阈值；视觉是前视预测值，可略大于 5cm
-volatile float dbg_task3_plus_ctrl_target_cm = 4.5f;   // +5cm 第一段给 PID 的内部目标，可略大于 5cm 防止到 5 前停住
-volatile float dbg_task3_center_margin_cm = 0.5f;      // +5cm 回 O 点时，球进 O 点附近多少 cm 后进入去 -5cm 阶段
-volatile float dbg_task3_target_reached_cm = 0.2f;     // 平滑目标回到 O 点附近的判断阈值
-volatile float dbg_task3_center_vel_limit_cm_s = 2.5f; // +5cm 回 O 点后，速度低于该值才允许进入 -5cm 阶段，越小刹得越稳
-volatile float dbg_task3_target_slew_cm_s = 25.0f;     // 题3目标斜坡速度，单位 cm/s，三段共用
-volatile float dbg_task3_plus_ff_deg = 2.0f;           // 题3第一阶段 0->+5cm 推进补偿角度，方向错就反号
-volatile uint8_t dbg_task3_plus_openloop_enable = 1U; // 1 第一阶段 0->+5cm 不跑 PID，直接下发固定摆杆角度
-volatile float dbg_task3_plus_openloop_deg = 6.0f;   // 第一阶段固定摆杆角度，单位 deg，最终命令 = ROD_CENTER_DEG + 这个值
-volatile float dbg_task3_plus_openloop_switch_cm = 4.5f; // 开环 0->+5cm 提前切 PID 的位置，太晚就调小，太早就调大
-volatile float dbg_task3_minus_ff_deg = 0.0f;          // 题3第三阶段 0->-5cm 推进/保持补偿角度，方向错就反号
-volatile float dbg_task3_minus_overrun_start_cm = -5.3f; // 球冲过 -5 到该位置后触发快速抬杆补偿，越小越晚
-volatile float dbg_task3_minus_overrun_vel_cm_s = -2.0f; // 球继续往 - 方向滚且速度小于该值才触发，过滤噪声
-volatile float dbg_task3_minus_overrun_ff_deg = 2.0f; // 冲过 -5 后快速抬杆补偿角度，拉回太多就调小，方向错就反号
-volatile float dbg_task3_minus_overrun_ff_applied_deg = 0.0f; // Watch 观察用：实际冲过 -5 后叠加的快速补偿
-volatile float dbg_task3_minus_vel_brake_kd = 0.04f; // 第三阶段额外速度刹车，越大越硬，方向不对就反号
-volatile float dbg_task3_minus_vel_brake_limit_deg = 2.0f; // 第三阶段额外速度刹车限幅，单位 deg
-volatile float dbg_task3_minus_vel_brake_dead_cm_s = 3.0f; // 第三阶段额外速度刹车死区，小速度噪声不刹车，单位 cm/s
-volatile float dbg_task3_minus_vel_brake_deg = 0.0f; // Watch 观察用：第三阶段实际额外刹车角度
-volatile float dbg_task3_minus_hold_margin_cm = 0.5f; // 第三阶段到 -5cm 附近多少范围进入保持，防止到点还抬杆
-volatile float dbg_task3_minus_hold_vel_cm_s = 2.0f; // 第三阶段进入保持的速度门槛，越小越严格，单位 cm/s
-volatile uint8_t dbg_task3_minus_hold_active = 0U; // Watch 观察用：1 表示 -5cm 终点保持正在接管输出
-volatile float dbg_task3_vel_filter_alpha = 0.01f;     // 题3速度阻尼滤波系数，越小越柔，越大越跟手，建议 0.05~0.30
+#if (TASK3_CONFIGURED_TOTAL_TIME_MS > TASK3_REQUIRED_TOTAL_LIMIT_MS)
+#error "Task 3 trajectory and wait time must not exceed 5000 ms"
+#endif
+
 volatile float dbg_task3_d_term_limit_deg = 2.0f;      // 题3 D 项输出限幅，避免 kd 一加摆杆就猛抽，单位 deg
 volatile float dbg_task3_vel_used_cm_s = 0.0f;         // Watch 观察用：滤波后实际参与 D 项的速度
-volatile float dbg_task3_ff_applied_deg = 0.0f;        // Watch 观察用：当前阶段实际叠加的固定补偿角度
-/* 题3总时间要求不超过 5s，这里用 5000ms 做结束判定参考。 */
-#define BALL_TASK3_TOTAL_MS     5000U
+
+enum
+{
+    TASK3_PHASE_MOVE_TO_PLUS5 = 0,
+    TASK3_PHASE_WAIT_AT_PLUS5,
+    TASK3_PHASE_MOVE_TO_MINUS5,
+    TASK3_PHASE_WAIT_AT_MINUS5,
+    TASK3_PHASE_FINISHED_HOLD
+};
 
 /* 题4要求 A 到 B 不超过 8s，同时钢球保持在 O 点附近。 */
 #define TASK4_AB_LIMIT_MS       8000U
@@ -79,6 +69,7 @@ static void balance_reset_runtime(void)
     gimbal_sm_obj.elapsed_ms = 0;        // 当前状态运行时间清零
     gimbal_sm_obj.stable_ms = 0;         // 稳定计时清零
     gimbal_sm_obj.task3_phase = 0;       // 题3从第一阶段开始：先去 +5cm
+    gimbal_sm_obj.task3_phase_elapsed_ms = 0;
     gimbal_sm_obj.finished = 0;          // 任务完成标志清零
     gimbal_sm_obj.task3_target_cmd_cm = 0.0f; // 题3平滑目标从 O 点开始
     sys.value.task_run_time_ms = 0;      // 对外显示的任务计时清零
@@ -107,49 +98,26 @@ static uint8_t balance_ball_stable(void)
     return (fabsf(sys.value.ball_pos_cm - sys.ctrl.ball_target_cm) <= BALL_STABLE_ERR_CM) ? 1U : 0U;
 }
 
-static uint8_t balance_task3_plus_turn_reached(void)
+static float task3_smooth_trajectory(float start_cm,
+                                     float end_cm,
+                                     uint32_t elapsed_ms,
+                                     uint32_t duration_ms)
 {
-    /* +5cm 是折返点，不是最终停车点。
-     * 注意：这里不能用 stable_ms 判断。题3平滑目标从 0cm 起步，球一开始就在 O 点附近，
-     * 如果用 stable_ms 会误判为已经到达 +5cm，导致状态机直接跳到 -5cm。
-     */
-    if (dbg_task3_plus_openloop_enable != 0U)
-        return (sys.value.ball_pos_cm >= dbg_task3_plus_openloop_switch_cm) ? 1U : 0U;
+    float ratio;
+    float smooth_ratio;
 
-    return (sys.value.ball_pos_cm >= dbg_task3_plus_reached_cm) ? 1U : 0U;
+    if ((duration_ms == 0U) || (elapsed_ms >= duration_ms))
+        return end_cm;
+
+    ratio = (float)elapsed_ms / (float)duration_ms;
+    smooth_ratio = ratio * ratio * (3.0f - 2.0f * ratio);
+    return start_cm + (end_cm - start_cm) * smooth_ratio;
 }
 
-static uint8_t balance_task3_center_reached(void)
+static void task3_enter_phase(uint8_t next_phase)
 {
-    /* 从 +5cm 折返回来时，经过 O 点附近就进入第三阶段。
-     * 必须同时满足“平滑目标已经回到 O 点附近”“球也回到 O 点附近”“球速已经压下来”，
-     * 防止球带着大速度过 O 点后直接冲向 -5cm。
-     */
-    if (fabsf(gimbal_sm_obj.task3_target_cmd_cm) > dbg_task3_target_reached_cm)
-        return 0U;
-
-    if (sys.value.ball_pos_cm > dbg_task3_center_margin_cm)
-        return 0U;
-
-    if (fabsf(dbg_task3_vel_used_cm_s) > dbg_task3_center_vel_limit_cm_s)
-        return 0U;
-
-    return 1U;
-}
-static float balance_slew_target_cm(float current_cm, float target_cm, float slew_cm_s)
-{
-    float step_cm = slew_cm_s * 0.001f;
-
-    /* 题3目标斜坡：PID 看到的是一个会移动的虚拟终点，而不是 +5cm 到 -5cm 的瞬间跳变。
-     * 这样折返时摆杆不会一下子打到极限，钢球速度更容易被拉住。
-     */
-    if (current_cm < (target_cm - step_cm))
-        return current_cm + step_cm;
-
-    if (current_cm > (target_cm + step_cm))
-        return current_cm - step_cm;
-
-    return target_cm;
+    gimbal_sm_obj.task3_phase = next_phase;
+    gimbal_sm_obj.task3_phase_elapsed_ms = 0U;
 }
 /* 更新稳定计时。
  * 只要钢球还在允许误差范围内，stable_ms 就持续累加；一旦跑出误差范围就清零。
@@ -180,78 +148,57 @@ static void balance_tick_time(void)
     sys.value.car_run_time_ms = gimbal_sm_obj.elapsed_ms;
 }
 
-/* 题3：小车静止，控制钢球从 O 点到 +5cm，再回到 O 点减速，最后运行到 -5cm。
- * task3_phase = 0：控制目标为 +5cm。
- * task3_phase = 1：控制目标为 O 点，用中点当阶段终点来压速度。
- * task3_phase = 2：控制目标为 -5cm，并稳定在 -5cm 附近。
- */
+/* 题3采用固定时间轨迹，不使用小球到位检测。 */
 static void balance_task3_static_pm5(void)
 {
-    if (gimbal_sm_obj.task3_phase == 0U)
+    switch (gimbal_sm_obj.task3_phase)
     {
-        /* 第一阶段：让钢球向 +5cm 运动。
-         * 这里给 PID 的不是硬目标 +5cm，而是逐步靠近 +5cm 的平滑目标。
-         */
-        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
-                                                                    dbg_task3_plus_ctrl_target_cm,
-                                                                    dbg_task3_target_slew_cm_s);
+    case TASK3_PHASE_MOVE_TO_PLUS5:
+        gimbal_sm_obj.task3_target_cmd_cm =
+            task3_smooth_trajectory(0.0f,
+                                    BALL_TASK3_PLUS_CM + TASK3_PLUS5_BIAS_CM,
+                                    gimbal_sm_obj.task3_phase_elapsed_ms,
+                                    TASK3_MOVE_TO_PLUS5_TIME_MS);
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
-        balance_update_stable_counter();
+        if (++gimbal_sm_obj.task3_phase_elapsed_ms >= TASK3_MOVE_TO_PLUS5_TIME_MS)
+            task3_enter_phase(TASK3_PHASE_WAIT_AT_PLUS5);
+        break;
 
-        /* 到 +5cm 折返点附近后：
-         * 开环测试模式下直接进入第三阶段，但目标仍按斜坡往 -5cm 走；
-         * 普通模式下仍先回 O 点压速度。
-         */
-        if (balance_task3_plus_turn_reached())
+    case TASK3_PHASE_WAIT_AT_PLUS5:
+        gimbal_sm_obj.task3_target_cmd_cm = BALL_TASK3_PLUS_CM;
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
+        if (++gimbal_sm_obj.task3_phase_elapsed_ms >= TASK3_PLUS5_WAIT_TIME_MS)
+            task3_enter_phase(TASK3_PHASE_MOVE_TO_MINUS5);
+        break;
+
+    case TASK3_PHASE_MOVE_TO_MINUS5:
+        gimbal_sm_obj.task3_target_cmd_cm =
+            task3_smooth_trajectory(BALL_TASK3_PLUS_CM,
+                                    BALL_TASK3_MINUS_CM,
+                                    gimbal_sm_obj.task3_phase_elapsed_ms,
+                                    TASK3_MOVE_TO_MINUS5_TIME_MS);
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
+        if (++gimbal_sm_obj.task3_phase_elapsed_ms >= TASK3_MOVE_TO_MINUS5_TIME_MS)
+            task3_enter_phase(TASK3_PHASE_WAIT_AT_MINUS5);
+        break;
+
+    case TASK3_PHASE_WAIT_AT_MINUS5:
+        gimbal_sm_obj.task3_target_cmd_cm = BALL_TASK3_MINUS_CM;
+        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
+        if (++gimbal_sm_obj.task3_phase_elapsed_ms >= TASK3_MINUS5_WAIT_TIME_MS)
         {
-            gimbal_sm_obj.task3_phase = (dbg_task3_plus_openloop_enable != 0U) ? 2U : 1U;
-            gimbal_sm_obj.stable_ms = 0;
-
-            /* 切换过程点时清掉 PID 的积分和上次误差，减少折返瞬间拖尾。 */
-            sys.ball_static_pid.position.i_term = 0.0f;
-            sys.ball_static_pid.position.pre_err = 0.0f;
-            sys.ball_static_pid.velocity.i_term = 0.0f;
-            sys.ball_static_pid.velocity.pre_err = 0.0f;
+            task3_enter_phase(TASK3_PHASE_FINISHED_HOLD);
+            gimbal_sm_obj.finished = 1U;
         }
-    }
-    else if (gimbal_sm_obj.task3_phase == 1U)
-    {
-        /* 第二阶段：从 +5cm 折返回 O 点。
-         * O 点只是过程终点，用来把球速压下来，不在这里长时间停留。
-         */
-        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
-                                                                    0.0f,
-                                                                    dbg_task3_target_slew_cm_s);
+        break;
+
+    case TASK3_PHASE_FINISHED_HOLD:
+    default:
+        gimbal_sm_obj.task3_target_cmd_cm = BALL_TASK3_MINUS_CM;
         ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
-        balance_update_stable_counter();
-
-        /* 经过 O 点附近后，再进入第三阶段去 -5cm。 */
-        if (balance_task3_center_reached())
-        {
-            gimbal_sm_obj.task3_phase = 2U;
-            gimbal_sm_obj.stable_ms = 0;
-
-            sys.ball_static_pid.position.i_term = 0.0f;
-            sys.ball_static_pid.position.pre_err = 0.0f;
-            sys.ball_static_pid.velocity.i_term = 0.0f;
-            sys.ball_static_pid.velocity.pre_err = 0.0f;
-        }
-    }
-    else
-    {
-        /* 第三阶段：从 O 点附近运行到 -5cm。
-         * 仍然只使用同一个平滑目标和位置闭环，避免额外提前刹车逻辑干扰现场调试。
-         */
-        gimbal_sm_obj.task3_target_cmd_cm = balance_slew_target_cm(gimbal_sm_obj.task3_target_cmd_cm,
-                                                                    BALL_TASK3_MINUS_CM,
-                                                                    dbg_task3_target_slew_cm_s);
-        ball_balance_static_ctrl(&sys, gimbal_sm_obj.task3_target_cmd_cm);
-        balance_update_stable_counter();
-    }
-
-    /* 题3要求总运行时间不超过 5s。这里到 5s 后，如果钢球已经在最终目标附近，就置 finished。 */
-    if (gimbal_sm_obj.elapsed_ms >= BALL_TASK3_TOTAL_MS && balance_ball_stable())
         gimbal_sm_obj.finished = 1U;
+        break;
+    }
 }
 /* 题4/题5/题6共用的运动保持控制。
  * target_cm 是本题钢球目标位置。
@@ -290,20 +237,24 @@ void gimbal_task_state(void)
 
     if (!balance_state_machine_enable)
     {
-        /* 默认只接收视觉，不自动回中、不跑题号状态机、不下发摆杆命令。 */
+        /* 上电及菜单选择态：始终运行静止串级位置环，把钢球保持在 O 点。
+         * 这里只做 0cm 定点保持，不运行任何题号轨迹和任务计时。
+         */
+        gimbal_sm_obj.state = GIMBAL_IDLE;
+        sys.ctrl.ball_target_cm = 0.0f;
+        ball_balance_static_ctrl(&sys, 0.0f);
         return;
     }
 
     switch (gimbal_sm_obj.state)
     {
     case GIMBAL_IDLE:
-        /* 空闲状态：摆杆回中并停止滚球控制，同时清空计时。 */
-        ball_balance_stop();
-        balance_reset_runtime();
+        /* 防御分支：即使空闲状态被使能，也只保持钢球在 O 点。 */
+        ball_balance_static_ctrl(&sys, 0.0f);
         break;
 
     case BALANCE_TASK3_STATIC_PLUS_TO_MINUS:
-        /* 题3：车静止，钢球 O 点 -> +5cm -> O 点 -> -5cm。 */
+        /* 题3：车静止，钢球 O 点 -> +5cm -> -5cm。 */
         balance_tick_time();
         balance_task3_static_pm5();
         break;

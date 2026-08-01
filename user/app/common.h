@@ -124,6 +124,8 @@ typedef struct
   pid_para_t velocity;
   volatile float velocity_target_cm_s;
   volatile float velocity_limit_cm_s;
+  volatile float velocity_filter_alpha;
+  volatile float velocity_filtered_cm_s;
 } ball_cascade_pid_t;
 
 typedef struct
@@ -205,7 +207,7 @@ typedef enum
   GIMBAL_IDLE = 0, // 空闲，不启动摆杆控制
 
   /* H题_车载平衡滚球运动控制系统：本摆杆工程只负责题3到题6 */
-  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// 题3：静止时 O 点 -> +5cm -> O 点 -> -5cm
+  BALANCE_TASK3_STATIC_PLUS_TO_MINUS,// 题3：静止时 O 点 -> +5cm -> -5cm
   BALANCE_TASK4_CAR_TO_B_CENTER,    // 题4：到 B 点，钢球稳在 O 点
   BALANCE_TASK5_CAR_LAP_CENTER,     // 题5：一圈，钢球稳在 O 点
   BALANCE_TASK6_CAR_LAP_SETPOINT,   // 题6：一圈，钢球稳在任意指定位置
@@ -219,9 +221,10 @@ typedef struct
   /* H题任务运行参数 */
   uint32_t elapsed_ms; // 当前状态已运行时间，单位 ms，每次启动任务时清零
   uint32_t stable_ms;  // 钢球进入允许误差范围后的稳定计时，单位 ms
-  uint8_t task3_phase; // 题3阶段标志，0 去 +5cm，1 回 O 点减速，2 再去 -5cm
+  uint32_t task3_phase_elapsed_ms; // 题3当前阶段运行时间，单位 ms
+  uint8_t task3_phase; // 0 去 +5，1 等待，2 去 -5，3 等待，4 完成并保持
   uint8_t finished;     // 当前题目是否完成，1 表示状态机已达到结束条件
-  float task3_target_cmd_cm; // 题3给 PID 的平滑目标，避免 +5cm 到 O 点、O 点到 -5cm 瞬间跳变导致猛拉
+  float task3_target_cmd_cm; // 题3轨迹规划器当前输出的位置目标，单位 cm
 } gimbal_sm_t;
 
 extern gimbal_sm_t gimbal_sm_obj;
@@ -315,33 +318,9 @@ void ball_balance_running_ctrl(sys_t *sys, float target_cm);
 void ball_balance_set_chassis_ff(float ff_deg);
 extern volatile uint8_t rod_cmd_limit_test_enable; // Keil 调试用：置 1 后进入状态反馈限幅调试
 extern volatile uint32_t rod_pid_test_run_cnt;  // Keil 调试用：状态反馈限幅调试分支运行计数
-/* 题3 Keil Watch 集中调试变量：定义在 gimbal_ctrl.c，Watch 里搜 dbg_task3_ */
-extern volatile float dbg_task3_plus_reached_cm;
-extern volatile float dbg_task3_plus_ctrl_target_cm;
-extern volatile float dbg_task3_center_margin_cm;
-extern volatile float dbg_task3_target_reached_cm;
-extern volatile float dbg_task3_center_vel_limit_cm_s;
-extern volatile float dbg_task3_target_slew_cm_s;
-extern volatile float dbg_task3_plus_ff_deg;
-extern volatile uint8_t dbg_task3_plus_openloop_enable;
-extern volatile float dbg_task3_plus_openloop_deg;
-extern volatile float dbg_task3_plus_openloop_switch_cm;
-extern volatile float dbg_task3_minus_ff_deg;
-extern volatile float dbg_task3_minus_overrun_start_cm;
-extern volatile float dbg_task3_minus_overrun_vel_cm_s;
-extern volatile float dbg_task3_minus_overrun_ff_deg;
-extern volatile float dbg_task3_minus_overrun_ff_applied_deg;
-extern volatile float dbg_task3_minus_vel_brake_kd;
-extern volatile float dbg_task3_minus_vel_brake_limit_deg;
-extern volatile float dbg_task3_minus_vel_brake_dead_cm_s;
-extern volatile float dbg_task3_minus_vel_brake_deg;
-extern volatile float dbg_task3_minus_hold_margin_cm;
-extern volatile float dbg_task3_minus_hold_vel_cm_s;
-extern volatile uint8_t dbg_task3_minus_hold_active;
-extern volatile float dbg_task3_vel_filter_alpha;
+/* 题3速度反馈调试变量。 */
 extern volatile float dbg_task3_d_term_limit_deg;
 extern volatile float dbg_task3_vel_used_cm_s;
-extern volatile float dbg_task3_ff_applied_deg;
 uint8_t balance_rod_limit_test_enabled(void);
 void balance_rod_limit_test_update(void);
 uint8_t balance_rod_cmd_limit_test_enabled(void);
